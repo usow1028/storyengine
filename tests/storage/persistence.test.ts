@@ -289,6 +289,45 @@ describe("canonical persistence", () => {
         provenanceIds: ["prov:event-travel"],
         representativeChecker: "time",
         reasonCode: "travel_duration_ok",
+        eventSummaries: [
+          {
+            eventId: "event:travel",
+            eventType: "travel",
+            sequence: 1,
+            abstract: false,
+            placeId: "place:newyork",
+            actorIds: ["character:a"],
+            targetIds: [],
+            timeRelation: "after"
+          }
+        ],
+        stateSummaries: [
+          {
+            characterId: "character:a",
+            stateBoundaryId: "boundary:a-initial",
+            previousBoundaryId: "boundary:a-initial",
+            previousSourceEventId: "event:travel",
+            relevantAxes: ["locationId", "goals"],
+            values: {
+              locationId: "place:seoul",
+              goals: ["Buy a building"]
+            }
+          }
+        ],
+        ruleSummaries: [
+          {
+            rulePackId: "rulepack:reality-default",
+            ruleVersionId: "ruleversion:reality-default-v1",
+            name: "Reality Default",
+            scope: "story",
+            scopeTargetId: "story:fixture",
+            worldAffiliation: "baseline",
+            active: true,
+            effects: ["requires_min_travel_time"]
+          }
+        ],
+        conflictPath: ["event:travel"],
+        missingPremises: [],
         supportingFindings: [
           {
             checker: "time",
@@ -324,6 +363,14 @@ describe("canonical persistence", () => {
     expect(reloadedRule.version.normalizedText).toContain("minimum time");
     expect(reloadedVerdicts[0]?.evidence.ruleVersionIds).toContain("ruleversion:reality-default-v1");
     expect(reloadedVerdicts[0]?.evidence.reasonCode).toBe("travel_duration_ok");
+    expect(reloadedVerdicts[0]?.evidence.eventSummaries[0]?.eventId).toBe("event:travel");
+    expect(reloadedVerdicts[0]?.evidence.stateSummaries[0]?.previousSourceEventId).toBe(
+      "event:travel"
+    );
+    expect(reloadedVerdicts[0]?.evidence.ruleSummaries[0]?.rulePackId).toBe(
+      "rulepack:reality-default"
+    );
+    expect(reloadedVerdicts[0]?.evidence.conflictPath).toEqual(["event:travel"]);
     expect(reloadedVerdicts[0]?.evidence.supportingFindings[0]?.checker).toBe("time");
     expect(reloadedProvenance[0]?.sourceRef).toContain("persistence.test.ts");
   });
