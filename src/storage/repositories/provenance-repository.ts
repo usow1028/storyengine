@@ -5,7 +5,16 @@ import { asJson, type SqlQueryable } from "../db.js";
 
 export const ProvenanceRecordSchema = z.object({
   provenanceId: ProvenanceIdSchema,
-  ownerType: z.enum(["story", "revision", "entity", "state_boundary", "event", "rule", "verdict"]),
+  ownerType: z.enum([
+    "story",
+    "revision",
+    "entity",
+    "state_boundary",
+    "event",
+    "causal_link",
+    "rule",
+    "verdict"
+  ]),
   ownerId: z.string().min(1),
   sourceKind: z.enum(["manual", "normalized", "imported", "test_fixture"]),
   sourceRef: z.string().min(1),

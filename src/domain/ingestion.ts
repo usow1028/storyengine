@@ -112,6 +112,68 @@ export const IngestionCandidateRecordSchema = z.object({
 });
 export type IngestionCandidateRecord = z.infer<typeof IngestionCandidateRecordSchema>;
 
+export const ReviewCandidateCorrectionSchema = z.object({
+  candidateId: IngestionCandidateIdSchema,
+  correctedPayload: z.unknown()
+});
+export type ReviewCandidateCorrection = z.infer<typeof ReviewCandidateCorrectionSchema>;
+
+export const ReviewSegmentBoundaryPatchSchema = z
+  .object({
+    label: z.string().trim().min(1).optional(),
+    startOffset: z.number().int().nonnegative().optional(),
+    endOffset: z.number().int().nonnegative().optional()
+  })
+  .superRefine((value, ctx) => {
+    if (
+      typeof value.label === "undefined" &&
+      typeof value.startOffset === "undefined" &&
+      typeof value.endOffset === "undefined"
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Boundary patches must update at least one field."
+      });
+    }
+
+    if (
+      typeof value.startOffset === "number" &&
+      typeof value.endOffset === "number" &&
+      value.startOffset > value.endOffset
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Boundary patch startOffset cannot exceed endOffset.",
+        path: ["startOffset"]
+      });
+    }
+  });
+export type ReviewSegmentBoundaryPatch = z.infer<typeof ReviewSegmentBoundaryPatchSchema>;
+
+export const ReviewSegmentPatchSchema = z
+  .object({
+    boundary: ReviewSegmentBoundaryPatchSchema.optional(),
+    candidateCorrections: z.array(ReviewCandidateCorrectionSchema).default([])
+  })
+  .superRefine((value, ctx) => {
+    if (!value.boundary && value.candidateCorrections.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Review patches must include a boundary update or at least one candidate correction."
+      });
+    }
+  });
+export type ReviewSegmentPatch = z.infer<typeof ReviewSegmentPatchSchema>;
+
+export const SegmentApprovalResultSchema = z.object({
+  sessionId: IngestionSessionIdSchema,
+  segmentId: IngestionSegmentIdSchema,
+  sessionWorkflowState: IngestionWorkflowStateSchema,
+  segmentWorkflowState: IngestionWorkflowStateSchema,
+  approvedAt: z.string().nullable().optional().default(null)
+});
+export type SegmentApprovalResult = z.infer<typeof SegmentApprovalResultSchema>;
+
 export const StructuredExtractionSegmentSchema = z.object({
   segmentId: IngestionSegmentIdSchema,
   workflowState: IngestionWorkflowStateSchema,

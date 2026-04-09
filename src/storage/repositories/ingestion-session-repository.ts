@@ -1,14 +1,24 @@
 import {
+  CanonicalEntitySchema,
+  CanonicalEventSchema,
+  CausalLinkSchema,
+  CharacterStateBoundarySchema,
   IngestionCandidateRecordSchema,
   IngestionSessionRecordSchema,
   IngestionSessionSnapshotSchema,
   IngestionSegmentRecordSchema,
   IngestionWorkflowStateSchema,
+  ReviewSegmentPatchSchema,
+  RuleCandidateNormalizedPayloadSchema,
+  SegmentApprovalResultSchema,
   StructuredExtractionBatchSchema,
   type IngestionCandidateRecord,
   type IngestionSessionRecord,
+  type IngestionSegmentSnapshot,
   type IngestionSessionSnapshot,
   type IngestionWorkflowState,
+  type ReviewSegmentPatch,
+  type SegmentApprovalResult,
   type StructuredExtractionBatch
 } from "../../domain/index.js";
 import { asJson, withTransaction, type SqlQueryable } from "../db.js";
@@ -75,6 +85,49 @@ function parseSegmentRow(row: SegmentRow) {
 
 function parseCandidateRow(row: CandidateRow): IngestionCandidateRecord {
   return IngestionCandidateRecordSchema.parse(row);
+}
+
+function normalizeCandidatePayload(candidate: IngestionCandidateRecord, payload: unknown) {
+  switch (candidate.candidateKind) {
+    case "entity":
+      return CanonicalEntitySchema.parse(payload);
+    case "state_boundary":
+      return CharacterStateBoundarySchema.parse(payload);
+    case "event":
+      return CanonicalEventSchema.parse(payload);
+    case "causal_link":
+      return CausalLinkSchema.parse(payload);
+    case "rule":
+      return RuleCandidateNormalizedPayloadSchema.parse(payload);
+  }
+}
+
+function computeSessionWorkflowState(snapshot: IngestionSessionSnapshot): IngestionWorkflowState {
+  const approvedSegments = snapshot.segments.filter(
+    ({ segment }) => segment.workflowState === "approved" || segment.approvedAt
+  );
+
+  if (approvedSegments.length === snapshot.segments.length && snapshot.segments.length > 0) {
+    if (snapshot.session.workflowState === "checked" && snapshot.session.lastCheckedAt) {
+      return "checked";
+    }
+
+    return "approved";
+  }
+
+  if (approvedSegments.length > 0) {
+    return "partially_approved";
+  }
+
+  if (snapshot.segments.some(({ segment }) => segment.workflowState === "needs_review")) {
+    return "needs_review";
+  }
+
+  if (snapshot.segments.some(({ segment }) => segment.workflowState === "extracted")) {
+    return "extracted";
+  }
+
+  return "submitted";
 }
 
 function assertSegmentBatchConsistency(batch: StructuredExtractionBatch): void {
@@ -376,6 +429,177 @@ export class IngestionSessionRepository {
         };
       })
     });
+  }
+
+  async applySegmentPatch(
+    sessionIdInput: string,
+    segmentIdInput: string,
+    patchInput: ReviewSegmentPatch,
+    options: { updatedAt?: string } = {}
+  ): Promise<IngestionSessionSnapshot> {
+    const sessionId = IngestionSessionRecordSchema.shape.sessionId.parse(sessionIdInput);
+    const segmentId = IngestionSegmentRecordSchema.shape.segmentId.parse(segmentIdInput);
+    const patch = ReviewSegmentPatchSchema.parse(patchInput);
+    const updatedAt = options.updatedAt ?? new Date().toISOString();
+    const snapshot = await this.loadSessionSnapshot(sessionId);
+    const segmentSnapshot = snapshot.segments.find(({ segment }) => segment.segmentId === segmentId);
+
+    if (!segmentSnapshot) {
+      throw new Error(`Segment ${segmentId} does not exist for session ${sessionId}`);
+    }
+
+    const candidateById = new Map(
+      segmentSnapshot.candidates.map((candidate) => [candidate.candidateId, candidate] as const)
+    );
+
+    const nextLabel = patch.boundary?.label ?? segmentSnapshot.segment.label;
+    const nextStartOffset = patch.boundary?.startOffset ?? segmentSnapshot.segment.startOffset;
+    const nextEndOffset = patch.boundary?.endOffset ?? segmentSnapshot.segment.endOffset;
+
+    if (nextStartOffset > nextEndOffset) {
+      throw new Error(`Segment ${segmentId} has an invalid boundary patch.`);
+    }
+
+    await withTransaction(this.client, async () => {
+      await this.client.query(
+        `
+          UPDATE ingestion_segments
+          SET label = $3,
+              start_offset = $4,
+              end_offset = $5,
+              workflow_state = $6
+          WHERE session_id = $1 AND segment_id = $2
+        `,
+        [
+          sessionId,
+          segmentId,
+          nextLabel,
+          nextStartOffset,
+          nextEndOffset,
+          segmentSnapshot.segment.approvedAt ? "approved" : "needs_review"
+        ]
+      );
+
+      for (const correction of patch.candidateCorrections) {
+        const candidate = candidateById.get(correction.candidateId);
+        if (!candidate) {
+          throw new Error(`Candidate ${correction.candidateId} does not belong to segment ${segmentId}`);
+        }
+
+        let normalizedPayload: unknown = null;
+        try {
+          normalizedPayload = normalizeCandidatePayload(candidate, correction.correctedPayload);
+        } catch {
+          normalizedPayload = null;
+        }
+
+        const reviewNeeded = candidate.reviewNeeded || normalizedPayload === null;
+        const reviewNeededReason =
+          normalizedPayload === null ? "normalization_failed" : candidate.reviewNeededReason ?? null;
+
+        await this.client.query(
+          `
+            UPDATE ingestion_candidates
+            SET corrected_payload = CAST($4 AS jsonb),
+                normalized_payload = CAST($5 AS jsonb),
+                review_needed = $6,
+                review_needed_reason = $7
+            WHERE session_id = $1 AND segment_id = $2 AND candidate_id = $3
+          `,
+          [
+            sessionId,
+            segmentId,
+            candidate.candidateId,
+            asJson(correction.correctedPayload),
+            asJson(normalizedPayload),
+            reviewNeeded,
+            reviewNeededReason
+          ]
+        );
+      }
+
+      await this.client.query(
+        `
+          UPDATE ingestion_sessions
+          SET updated_at = $2
+          WHERE session_id = $1
+        `,
+        [sessionId, updatedAt]
+      );
+    });
+
+    await this.recalculateSessionState(sessionId, { updatedAt });
+    return this.loadSessionSnapshot(sessionId);
+  }
+
+  async approveSegment(
+    sessionIdInput: string,
+    segmentIdInput: string,
+    options: { approvedAt?: string; updatedAt?: string } = {}
+  ): Promise<SegmentApprovalResult> {
+    const sessionId = IngestionSessionRecordSchema.shape.sessionId.parse(sessionIdInput);
+    const segmentId = IngestionSegmentRecordSchema.shape.segmentId.parse(segmentIdInput);
+    const approvedAt = options.approvedAt ?? new Date().toISOString();
+    const updatedAt = options.updatedAt ?? approvedAt;
+    const snapshot = await this.loadSessionSnapshot(sessionId);
+    const segmentSnapshot = snapshot.segments.find(({ segment }) => segment.segmentId === segmentId);
+
+    if (!segmentSnapshot) {
+      throw new Error(`Segment ${segmentId} does not exist for session ${sessionId}`);
+    }
+
+    const unresolvedCandidate = segmentSnapshot.candidates.find(
+      (candidate) => candidate.normalizedPayload === null
+    );
+    if (unresolvedCandidate) {
+      throw new Error(`Segment ${segmentId} still has candidates with null normalized payload.`);
+    }
+
+    await this.client.query(
+      `
+        UPDATE ingestion_segments
+        SET workflow_state = $3,
+            approved_at = $4
+        WHERE session_id = $1 AND segment_id = $2
+      `,
+      [sessionId, segmentId, "approved", approvedAt]
+    );
+
+    const sessionWorkflowState = await this.recalculateSessionState(sessionId, { updatedAt });
+
+    return SegmentApprovalResultSchema.parse({
+      sessionId,
+      segmentId,
+      sessionWorkflowState,
+      segmentWorkflowState: "approved",
+      approvedAt
+    });
+  }
+
+  async listApprovedSegments(sessionIdInput: string): Promise<IngestionSegmentSnapshot[]> {
+    const sessionId = IngestionSessionRecordSchema.shape.sessionId.parse(sessionIdInput);
+    const snapshot = await this.loadSessionSnapshot(sessionId);
+    return snapshot.segments.filter(
+      ({ segment }) => segment.workflowState === "approved" || segment.approvedAt
+    );
+  }
+
+  async recalculateSessionState(
+    sessionIdInput: string,
+    options: { updatedAt?: string } = {}
+  ): Promise<IngestionWorkflowState> {
+    const sessionId = IngestionSessionRecordSchema.shape.sessionId.parse(sessionIdInput);
+    const snapshot = await this.loadSessionSnapshot(sessionId);
+    const workflowState = computeSessionWorkflowState(snapshot);
+    const updatedAt = options.updatedAt ?? new Date().toISOString();
+
+    await this.setSessionState(sessionId, workflowState, {
+      updatedAt,
+      lastCheckedAt: workflowState === "checked" ? snapshot.session.lastCheckedAt : undefined,
+      lastVerdictRunId: workflowState === "checked" ? snapshot.session.lastVerdictRunId : undefined
+    });
+
+    return workflowState;
   }
 
   async setSessionState(

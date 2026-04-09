@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  ReviewSegmentPatchSchema,
   IngestionSessionSnapshotSchema,
   SubmissionInputKindSchema
 } from "../domain/index.js";
@@ -29,6 +30,9 @@ export type SubmitIngestionRequest = z.infer<typeof SubmitIngestionRequestSchema
 export const ExtractSubmissionRequestSchema = z.object({}).default({});
 export type ExtractSubmissionRequest = z.infer<typeof ExtractSubmissionRequestSchema>;
 
+export const ReviewSegmentPatchRequestSchema = ReviewSegmentPatchSchema;
+export type ReviewSegmentPatchRequest = z.infer<typeof ReviewSegmentPatchRequestSchema>;
+
 export const IngestionSessionResponseSchema = z.object({
   sessionId: z.string().min(1),
   workflowState: z.string().min(1),
@@ -54,13 +58,26 @@ export const IngestionSessionResponseSchema = z.object({
           reviewNeededReason: z.string().nullable(),
           sourceSpanStart: z.number().int().nonnegative(),
           sourceSpanEnd: z.number().int().nonnegative(),
-          provenanceDetail: z.record(z.string(), z.unknown())
+          provenanceDetail: z.record(z.string(), z.unknown()),
+          extractedPayload: z.unknown(),
+          correctedPayload: z.unknown().nullable(),
+          normalizedPayload: z.unknown().nullable()
         })
       )
     })
   )
 });
 export type IngestionSessionResponse = z.infer<typeof IngestionSessionResponseSchema>;
+
+export const CheckIngestionResponseSchema = z.object({
+  sessionId: z.string().min(1),
+  workflowState: z.literal("checked"),
+  storyId: z.string().min(1),
+  revisionId: z.string().min(1),
+  runId: z.string().min(1),
+  previousRunId: z.string().nullable()
+});
+export type CheckIngestionResponse = z.infer<typeof CheckIngestionResponseSchema>;
 
 export function serializeIngestionSessionResponse(snapshotInput: unknown): IngestionSessionResponse {
   const snapshot = IngestionSessionSnapshotSchema.parse(snapshotInput);
@@ -87,7 +104,10 @@ export function serializeIngestionSessionResponse(snapshotInput: unknown): Inges
         reviewNeededReason: candidate.reviewNeededReason ?? null,
         sourceSpanStart: candidate.sourceSpanStart,
         sourceSpanEnd: candidate.sourceSpanEnd,
-        provenanceDetail: candidate.provenanceDetail
+        provenanceDetail: candidate.provenanceDetail,
+        extractedPayload: candidate.extractedPayload,
+        correctedPayload: candidate.correctedPayload ?? null,
+        normalizedPayload: candidate.normalizedPayload ?? null
       }))
     }))
   });
