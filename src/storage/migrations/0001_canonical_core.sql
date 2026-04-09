@@ -129,6 +129,7 @@ CREATE TABLE IF NOT EXISTS rule_packs (
   description TEXT NOT NULL DEFAULT '',
   world_affiliation TEXT NOT NULL,
   scope TEXT NOT NULL,
+  scope_target_id TEXT,
   priority INTEGER NOT NULL,
   active BOOLEAN NOT NULL,
   source_kind TEXT NOT NULL,

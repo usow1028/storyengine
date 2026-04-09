@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 import {
+  EntityIdSchema,
+  EventIdSchema,
   ProvenanceIdSchema,
   RevisionIdSchema,
   RulePackIdSchema,
@@ -25,6 +27,7 @@ export const RulePackMetadataSchema = z.object({
   description: z.string().default(""),
   worldAffiliation: z.string().min(1),
   scope: RuleScopeSchema,
+  scopeTargetId: z.union([EntityIdSchema, EventIdSchema]).optional(),
   priority: z.number().int(),
   active: z.boolean(),
   sourceKind: RuleSourceKindSchema,

@@ -256,6 +256,7 @@ describe("canonical persistence", () => {
         description: "Baseline physical rules",
         worldAffiliation: "baseline",
         scope: "story",
+        scopeTargetId: "story:fixture",
         priority: 0,
         active: true,
         sourceKind: "baseline",
@@ -285,7 +286,25 @@ describe("canonical persistence", () => {
         eventIds: ["event:travel"],
         stateBoundaryIds: ["boundary:a-initial"],
         ruleVersionIds: ["ruleversion:reality-default-v1"],
-        provenanceIds: ["prov:event-travel"]
+        provenanceIds: ["prov:event-travel"],
+        representativeChecker: "time",
+        reasonCode: "travel_duration_ok",
+        supportingFindings: [
+          {
+            checker: "time",
+            reasonCode: "travel_duration_ok",
+            category: "temporal_contradiction",
+            verdictKind: "Consistent",
+            explanation: "Travel duration meets the minimum requirement.",
+            evidence: {
+              eventIds: ["event:travel"],
+              stateBoundaryIds: ["boundary:a-initial"],
+              ruleVersionIds: ["ruleversion:reality-default-v1"],
+              provenanceIds: ["prov:event-travel"]
+            }
+          }
+        ],
+        notEvaluated: []
       },
       createdAt: "2026-04-09T06:31:00Z"
     });
@@ -301,8 +320,11 @@ describe("canonical persistence", () => {
     expect(reloadedGraph.stateBoundaries[0]?.extensions[0]?.key).toBe("debt_score");
     expect(reloadedGraph.causalLinks[0]?.relation).toBe("enables");
     expect(reloadedRule.metadata.sourceText).toContain("Reality physics");
+    expect(reloadedRule.metadata.scopeTargetId).toBe("story:fixture");
     expect(reloadedRule.version.normalizedText).toContain("minimum time");
     expect(reloadedVerdicts[0]?.evidence.ruleVersionIds).toContain("ruleversion:reality-default-v1");
+    expect(reloadedVerdicts[0]?.evidence.reasonCode).toBe("travel_duration_ok");
+    expect(reloadedVerdicts[0]?.evidence.supportingFindings[0]?.checker).toBe("time");
     expect(reloadedProvenance[0]?.sourceRef).toContain("persistence.test.ts");
   });
 

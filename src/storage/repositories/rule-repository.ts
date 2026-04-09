@@ -27,6 +27,7 @@ export class RuleRepository {
             description,
             world_affiliation,
             scope,
+            scope_target_id,
             priority,
             active,
             source_kind,
@@ -34,7 +35,7 @@ export class RuleRepository {
             default_physics,
             provenance_id
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
           ON CONFLICT (rule_pack_id) DO UPDATE SET
             story_id = EXCLUDED.story_id,
             revision_id = EXCLUDED.revision_id,
@@ -42,6 +43,7 @@ export class RuleRepository {
             description = EXCLUDED.description,
             world_affiliation = EXCLUDED.world_affiliation,
             scope = EXCLUDED.scope,
+            scope_target_id = EXCLUDED.scope_target_id,
             priority = EXCLUDED.priority,
             active = EXCLUDED.active,
             source_kind = EXCLUDED.source_kind,
@@ -57,6 +59,7 @@ export class RuleRepository {
           metadata.description,
           metadata.worldAffiliation,
           metadata.scope,
+          metadata.scopeTargetId ?? null,
           metadata.priority,
           metadata.active,
           metadata.sourceKind,
@@ -118,6 +121,7 @@ export class RuleRepository {
         description: string;
         worldAffiliation: string;
         scope: string;
+        scopeTargetId?: string | null;
         priority: number;
         active: boolean;
         sourceKind: "baseline" | "user_authored" | "imported" | "normalized";
@@ -142,6 +146,7 @@ export class RuleRepository {
             p.description,
             p.world_affiliation AS "worldAffiliation",
             p.scope,
+            p.scope_target_id AS "scopeTargetId",
             p.priority,
             p.active,
             p.source_kind AS "sourceKind",
@@ -177,6 +182,7 @@ export class RuleRepository {
         description: row.description,
         worldAffiliation: row.worldAffiliation,
         scope: row.scope,
+        scopeTargetId: row.scopeTargetId ?? undefined,
         priority: row.priority,
         active: row.active,
         sourceKind: row.sourceKind,
