@@ -1,7 +1,7 @@
 # Phase 5: Natural-Language Ingestion and Review API - Research
 
 **Researched:** 2026-04-10
-**Domain:** Natural-language intake, review-session state management, provenance-preserving correction loops, and on-demand check APIs over the existing canonical reasoning core
+**Domain:** First HTTP API surface, schema-first natural-language extraction, review-session persistence, approval-gated canonical promotion, and manual verdict triggering
 **Confidence:** HIGH
 
 <user_constraints>
@@ -29,81 +29,80 @@
 - **D-19:** Phase 5 starts with a single model and a single prompt family; multi-model or multi-pass extraction is deferred.
 - **D-20:** The extraction layer is advisory only and never bypasses the logic-led canonical model.
 
-### the agent's Discretion
-- Exact Fastify route naming and module layout, as long as the state machine and manual check trigger remain explicit.
-- Exact review patch shape, as long as edits stay structured and auditable against original extraction candidates.
-- Exact auto-segmentation heuristics, as long as segment boundaries remain review-editable.
-- Exact persistence strategy for review sessions, as long as approved canonical writes remain revision-scoped and provenance-rich.
-- Exact confidence thresholds and conflict heuristics, as long as ambiguous outputs remain visible instead of being silently flattened.
+### Claude's Discretion
+- Exact segmentation heuristics for auto-splitting full drafts, as long as segment boundaries remain review-editable.
+- Exact review payload and patch format, as long as structured field editing and segment-level approval remain intact.
+- Exact persistence model for in-progress review state, as long as canonical promotion stays approval-gated and auditable.
+- Exact confidence threshold policy that turns candidates into `review_needed`.
+- Exact API route naming and transport surface, as long as the chosen state machine and manual check trigger are preserved.
 
 ### Deferred Ideas (OUT OF SCOPE)
-- Free-text annotation-first correction loops.
-- Automatic checks on submission or approval.
-- Multi-model voting or multi-pass extraction pipelines.
-- Rich visual inspection UI or collaborative review features.
-- Autonomous repair application during ingestion.
+- Automatic checks on approval or on submission — deferred because Phase 5 keeps checks manual and user-triggered.
+- Free-text annotation driven correction loops — deferred in favor of structured field editing.
+- Multi-model or multi-pass extraction pipelines — deferred until the single-model contract stabilizes.
+- Marking every extracted item as review-required by default — deferred because rule-based `review_needed` was chosen instead.
+- Whole-draft all-at-once approval/finalization flows — deferred because segment-level approval was chosen.
 </user_constraints>
+
+<phase_requirements>
+## Phase Requirements
+
+| ID | Description | Research Support |
+|----|-------------|------------------|
+| FLOW-01 | User can submit natural-language synopsis or scene text and receive a normalized structured interpretation for review. `[VERIFIED: .planning/REQUIREMENTS.md]` | Fastify submission routes, schema-constrained extraction output, review-session persistence, provenance-preserving candidate model, and approval-gated normalization support this requirement. `[VERIFIED: package.json][VERIFIED: src/storage/repositories/story-repository.ts][CITED: https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/][CITED: https://developers.openai.com/api/docs/guides/structured-outputs]` |
+| FLOW-03 | User can run consistency checks on demand and is not forced into realtime verdicting while drafting. `[VERIFIED: .planning/REQUIREMENTS.md]` | A separate `check` endpoint that resolves the latest approved revision and calls `executeVerdictRun` preserves the manual-only check boundary. `[VERIFIED: src/services/verdict-runner.ts][VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md]` |
+</phase_requirements>
 
 <research_summary>
 ## Summary
 
-Phase 5 should add the first application-facing API surface without weakening the deterministic architecture already established in Phases 1 through 4. The cleanest implementation keeps three layers separate:
+Phase 5 does not need a second application core. The repo already has the right lower layers: canonical persistence is revision-scoped, verdict runs are auditable, and the manual check entrypoint already exists in `executeVerdictRun`. `[VERIFIED: src/storage/repositories/story-repository.ts][VERIFIED: src/storage/repositories/verdict-run-repository.ts][VERIFIED: src/services/verdict-runner.ts]` The missing pieces are an HTTP transport, an extraction boundary, and a review-state model that can hold unapproved structure without contaminating canonical revisions. `[VERIFIED: package.json][VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md]`
 
-1. **Natural-language intake layer** for submission, segmentation, extraction, and review-session lifecycle.
-2. **Canonical promotion layer** that accepts only approved structured edits and writes them through existing repository boundaries.
-3. **Check execution layer** that reuses `executeVerdictRun` and remains manual/on-demand.
+The cleanest plan is a four-layer flow: `submission API -> deterministic segmentation -> schema-constrained extraction -> review-session overlay -> approval-driven canonical promotion -> manual check`. `[VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md][ASSUMED]` Fastify fits the first API surface because current project guidance already recommends it, and official Fastify docs confirm route schemas, plugin encapsulation, and built-in test injection. `[VERIFIED: AGENTS.md][CITED: https://fastify.dev/docs/latest/Reference/Routes/][CITED: https://fastify.dev/docs/latest/Reference/Plugins/][CITED: https://fastify.dev/docs/latest/Guides/Testing/]` Zod should remain the single schema source of truth because the repo already uses it broadly and Zod 4 can emit JSON Schema for route validation. `[VERIFIED: package.json][CITED: https://zod.dev/json-schema]`
 
-Because the repository currently has no HTTP framework, the recommended shape is a thin Fastify boundary over service modules rather than embedding business logic directly in route handlers. The API layer should translate HTTP requests into typed service calls, while the real phase work lives in new domain contracts, review-session repositories, and orchestration services.
+The strongest codebase-specific planning constraint is that canonical repositories are snapshot-oriented, not patch-oriented. `StoryRepository.saveGraph()` upserts by canonical IDs and the repository has no delete path, so Phase 5 should not let partial segment approvals mutate an existing revision in place. `[VERIFIED: src/storage/repositories/story-repository.ts][VERIFIED: rg -n "DELETE FROM" src/storage/repositories/story-repository.ts src/storage/repositories]` Instead, approvals should materialize a new child revision with `basedOnRevisionId` pointing to the previously approved revision, while unapproved segments remain in review tables only. `[VERIFIED: src/domain/entities.ts][ASSUMED]`
 
-The roadmap's two plans map cleanly to this split:
-
-- **Plan 05-01:** Build the natural-language extraction and schema-validation pipeline. This includes submission contracts, auto-segmentation, extraction candidate schemas, provenance capture, review-session persistence, and submit/extract/read APIs.
-- **Plan 05-02:** Implement the correction loop and check-mode controls. This includes structured patching, segment approval, canonical promotion of approved segments, explicit workflow states, and a manual `check` endpoint that calls `executeVerdictRun`.
-
-The decisive architectural rule is that LLM output is never canonical by itself. The LLM may propose normalized candidates, but every candidate must:
-
-1. pass schema validation,
-2. carry source provenance and confidence,
-3. remain reviewable if ambiguous or incomplete, and
-4. be promoted only after explicit approval.
-
-This preserves explainability while still letting writers work from prose-like input.
+**Primary recommendation:** Add Phase 5 as a thin Fastify API plus a separate review-session persistence layer; keep model output schema-constrained and non-canonical, promote only approved segments into new `normalized` child revisions, and wire `check` directly to `executeVerdictRun({ triggerKind: "manual" })`. `[VERIFIED: AGENTS.md][VERIFIED: src/services/verdict-runner.ts][CITED: https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/][CITED: https://developers.openai.com/api/docs/guides/structured-outputs][ASSUMED]`
 </research_summary>
 
 <standard_stack>
-## Recommended Stack
+## Standard Stack
 
 ### Core
-| Technology | Purpose | Why it fits Phase 5 |
-|------------|---------|---------------------|
-| Existing TypeScript + Zod domain layer | Submission, extraction, review, and promotion contracts | Keeps natural-language intake aligned with canonical schemas already used by the engine |
-| Fastify | First HTTP/API surface for submit/review/approve/check routes | Matches the project stack guidance and keeps route handlers thin |
-| Existing repository layer (`src/storage/repositories`) | Canonical persistence and audit-friendly writes | Avoids bypassing the source-of-truth write path when promoting approved segments |
-| Existing verdict orchestration (`src/services/verdict-runner.ts`) | Manual check execution after approval | Satisfies the locked on-demand check decision without duplicating engine behavior |
-| Vitest + pg-mem | Service, repository, and API regression coverage | Existing fast deterministic harness is already in place |
+| Library | Version | Purpose | Why Standard |
+|---------|---------|---------|--------------|
+| Fastify | `5.8.4` `[VERIFIED: npm registry, modified 2026-03-23]` | First HTTP API surface for submission, review, approval, and check endpoints. `[VERIFIED: package.json lacks any HTTP framework]` | Project guidance already recommends Fastify, and official docs confirm schema-based request/response handling plus plugin encapsulation for route modules. `[VERIFIED: AGENTS.md][CITED: https://fastify.dev/docs/latest/Reference/Routes/][CITED: https://fastify.dev/docs/latest/Reference/Plugins/][CITED: https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/]` |
+| fastify-plugin | `5.1.0` `[VERIFIED: npm registry, modified 2025-09-28]` | Shared decorations for repositories, extraction client, and session services. `[ASSUMED]` | Fastify docs explicitly recommend `fastify-plugin` when shared decorators must escape plugin scope. `[CITED: https://fastify.dev/docs/latest/Reference/Plugins/]` |
+| Zod | `4.1.12` installed / `4.3.6` latest `[VERIFIED: package.json][VERIFIED: npm registry, modified 2026-01-25]` | Single schema source for request DTOs, extraction contracts, review items, and canonical normalization inputs. `[VERIFIED: package.json]` | The repo already relies on Zod, and Zod 4 exposes `z.toJSONSchema()` so route schemas and internal types do not diverge. `[VERIFIED: package.json][CITED: https://zod.dev/json-schema]` |
+| OpenAI Node SDK | `6.34.0` `[VERIFIED: npm registry, modified 2026-04-08]` | Default single-model extraction adapter for Phase 5. `[ASSUMED]` | Official docs show Responses API structured outputs with Zod helpers and refusal handling, which matches segment extraction better than prompt-only JSON mode. `[CITED: https://developers.openai.com/api/docs/guides/structured-outputs]` |
 
 ### Supporting
-| Library / Module | Version | Purpose | When to Use |
-|------------------|---------|---------|-------------|
-| Existing provenance storage (`src/storage/repositories/provenance-repository.ts`) | current repo implementation | Persist source spans, extraction origins, and correction audit trails | Use for segment/item provenance and original-vs-corrected records |
-| Existing story persistence (`src/storage/repositories/story-repository.ts`) | current repo implementation | Save approved canonical graph updates into story revisions | Use only after segment approval |
-| Existing canonical schemas in `src/domain/*.ts` | current repo implementation | Normalize extraction candidates into canonical entities/events/state/rule structures | Use as the only admissible promotion target |
-| Existing migration loading in `src/storage/schema.ts` | current repo implementation | Extend schema for review-session persistence if new tables are needed | Use if Phase 5 introduces dedicated review-session tables |
+| Library | Version | Purpose | When to Use |
+|---------|---------|---------|-------------|
+| Existing repository layer (`StoryRepository`, `RuleRepository`, `VerdictRepository`, `VerdictRunRepository`) | current repo `[VERIFIED: src/storage/repositories/*.ts]` | Canonical promotion and check integration. `[VERIFIED: src/services/verdict-runner.ts]` | Use for all canonical writes and manual check orchestration; do not bypass them from route handlers. `[VERIFIED: src/services/verdict-runner.ts][VERIFIED: src/storage/repositories/story-repository.ts]` |
+| ProvenanceRepository | current repo `[VERIFIED: src/storage/repositories/provenance-repository.ts]` | Canonical provenance persistence after approval. `[VERIFIED: src/storage/repositories/provenance-repository.ts]` | Use when approved items become canonical entities/events/rules; keep review-layer spans in separate review tables until then. `[VERIFIED: src/storage/repositories/provenance-repository.ts][ASSUMED]` |
+| pg-mem | `3.0.5` installed / `3.0.14` latest `[VERIFIED: package.json][VERIFIED: npm registry, modified 2026-02-26]` | Fast integration tests for API routes, session repos, and promotion/check flows. `[VERIFIED: tests/engine/verdict-runner.test.ts]` | Use for route and repository tests so Phase 5 validation stays local and deterministic. `[VERIFIED: tests/engine/verdict-runner.test.ts][CITED: https://fastify.dev/docs/latest/Guides/Testing/]` |
+| Vitest | `3.2.4` installed / `4.1.4` latest `[VERIFIED: package.json][VERIFIED: npm registry, modified 2026-04-09]` | Existing test harness. `[VERIFIED: package.json]` | Keep the current harness for Phase 5 unless a separate dependency-refresh task is budgeted. `[VERIFIED: package.json][VERIFIED: vitest.config.ts][ASSUMED]` |
 
 ### Alternatives Considered
 | Instead of | Could Use | Tradeoff |
 |------------|-----------|----------|
-| Thin Fastify routes + service orchestration | Route handlers that perform extraction and persistence directly | Simpler initially, but collapses API and domain logic into one layer |
-| Dedicated review-session persistence | Only in-memory review state | Faster prototype, but breaks auditability and approval gating |
-| Segment-level approval | Whole-draft finalization only | Less state to manage, but contradicts the locked chunk-oriented review model |
-| Manual `check` endpoint reusing `executeVerdictRun` | Automatic checks after approval | More immediate feedback, but violates the explicit on-demand requirement |
+| Fastify route schemas generated from Zod | Handwritten JSON Schema alongside Zod types | Faster to spike once, but official OpenAI docs warn against schema/type divergence and Zod already supports JSON Schema emission. `[CITED: https://developers.openai.com/api/docs/guides/structured-outputs][CITED: https://zod.dev/json-schema]` |
+| `responses.parse()` with structured `text.format` | Function calling | OpenAI docs say function calling is for model-to-tool bridging, while structured response format is the better fit when the model should return typed data to the app. `[CITED: https://developers.openai.com/api/docs/guides/structured-outputs]` |
+| Approval creating a new normalized child revision | Mutating the current revision in place | Child revisions cost extra rows, but in-place mutation conflicts with the repo’s snapshot model and weakens auditability. `[VERIFIED: src/domain/entities.ts][VERIFIED: src/storage/repositories/story-repository.ts][ASSUMED]` |
 
 **Installation:**
 ```bash
-# Existing workspace already provides TypeScript, Vitest, and pg-mem.
-# Phase 5 execution will likely add Fastify and any small route-testing helpers.
-npm install
+npm install fastify fastify-plugin openai
 ```
+
+**Version verification:**
+- `fastify@5.8.4` latest on npm, registry modified `2026-03-23`. `[VERIFIED: npm registry]`
+- `fastify-plugin@5.1.0` latest on npm, registry modified `2025-09-28`. `[VERIFIED: npm registry]`
+- `openai@6.34.0` latest on npm, registry modified `2026-04-08`. `[VERIFIED: npm registry]`
+- `zod@4.3.6` latest on npm, but repo currently pins `4.1.12`; Phase 5 can stay on the repo pin unless upgrade work is explicitly planned. `[VERIFIED: npm registry][VERIFIED: package.json]`
+- `pg-mem@3.0.14` latest on npm, but repo currently pins `3.0.5`; current tests already pass on the installed version. `[VERIFIED: npm registry][VERIFIED: package.json][VERIFIED: npm run test:reasoning]`
+- `vitest@4.1.4` latest on npm, but repo currently pins `3.2.4`; keep current unless dependency churn is budgeted. `[VERIFIED: npm registry][VERIFIED: package.json]`
 </standard_stack>
 
 <architecture_patterns>
@@ -112,265 +111,424 @@ npm install
 ### Recommended Project Structure
 ```text
 src/
-├── domain/
-│   └── ingestion.ts                  # submission, segment, candidate, review-state contracts
+├── api/
+│   ├── build-app.ts           # build Fastify instance without listening
+│   ├── server.ts              # process entrypoint / listen
+│   ├── plugins/
+│   │   ├── repositories.ts    # decorate app with repo dependencies
+│   │   └── extraction.ts      # decorate app with extraction adapter
+│   └── routes/
+│       ├── review-sessions.ts # submit/get session/check session
+│       └── segments.ts        # edit boundaries, patch fields, approve segment
+├── ingestion/
+│   ├── schemas.ts             # submission, segment, candidate, review patch schemas
+│   ├── segmentation.ts        # deterministic draft-to-segment splitter
+│   ├── extractor.ts           # LLM adapter boundary
+│   ├── normalization.ts       # review candidate -> canonical patch
+│   └── promotion.ts           # canonical revision + rule pack promotion
 ├── services/
-│   ├── ingestion-session.ts          # submit, segment, extract, review-session orchestration
-│   ├── ingestion-review.ts           # structured patching, approval, canonical promotion
-│   ├── ingestion-check.ts            # manual check trigger over executeVerdictRun
-│   └── index.ts
-├── storage/
-│   ├── migrations/0003_ingestion_review.sql
-│   └── repositories/
-│       ├── ingestion-session-repository.ts
-│       └── ingestion-review-repository.ts
-└── api/
-    ├── app.ts                        # Fastify factory
-    ├── routes/
-    │   ├── ingestion-submit.ts
-    │   ├── ingestion-review.ts
-    │   └── ingestion-check.ts
-    └── schemas.ts
-
-tests/
-├── services/
-│   ├── natural-language-extraction.test.ts
-│   └── ingestion-review-workflow.test.ts
-├── storage/
-│   └── ingestion-session-repository.test.ts
-└── api/
-    ├── ingestion-review-api.test.ts
-    └── check-controls-api.test.ts
+│   ├── review-session-service.ts
+│   ├── segment-approval-service.ts
+│   └── verdict-runner.ts
+└── storage/
+    └── repositories/
+        ├── review-session-repository.ts
+        ├── story-repository.ts
+        ├── rule-repository.ts
+        ├── provenance-repository.ts
+        ├── verdict-repository.ts
+        └── verdict-run-repository.ts
 ```
+This keeps the new transport layer thin and aligned with the repo’s existing `services/` plus `storage/repositories/` split. `[VERIFIED: src/services/index.ts][VERIFIED: src/storage/repositories/story-repository.ts][CITED: https://fastify.dev/docs/latest/Guides/Testing/][ASSUMED]`
 
-### Pattern 1: Review Session as a First-Class Boundary
-**What:** Treat each natural-language submission as a review session with its own state machine, segments, extraction candidates, provenance, and approval status.
-**When to use:** For both chunk submissions and full-draft submissions.
+### Pattern 1: Build-App / Server Split
+**What:** Create a Fastify app factory that registers plugins and routes, then keep the actual `listen()` call in a separate file. `[CITED: https://fastify.dev/docs/latest/Guides/Testing/]`
+**When to use:** For the first API surface and for every route integration test. `[CITED: https://fastify.dev/docs/latest/Guides/Testing/]`
 **Example:**
 ```typescript
-const session = await createIngestionSession({
+import Fastify from "fastify";
+
+export function buildApp(deps: ApiDeps) {
+  const app = Fastify();
+  app.register(repositoriesPlugin, deps);
+  app.register(reviewSessionRoutes, { prefix: "/review-sessions" });
+  return app;
+}
+```
+Source: Fastify testing and plugin guidance. `[CITED: https://fastify.dev/docs/latest/Guides/Testing/][CITED: https://fastify.dev/docs/latest/Reference/Plugins/]`
+
+### Pattern 2: JSON-Enveloped Submission Route
+**What:** Accept submissions as JSON objects with prose text plus target metadata instead of raw `text/plain` bodies. `[ASSUMED]`
+**When to use:** `POST /review-sessions` and any route that also needs `storyId`, `revisionId`, segmentation options, or submission kind. `[VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md][ASSUMED]`
+**Why:** Fastify validates JSON bodies directly, while per-content-type validation requires a complete `content` map and has sharp edges if parsers accept more content types than the schema covers. `[CITED: https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/]`
+**Example:**
+```typescript
+const SubmitSessionRequest = z.object({
+  submissionKind: z.enum(["chunk", "full_draft"]),
+  text: z.string().min(1),
+  storyId: z.string().optional(),
+  revisionId: z.string().optional(),
+  title: z.string().optional()
+});
+
+app.post("/review-sessions", {
+  schema: { body: z.toJSONSchema(SubmitSessionRequest) }
+}, handler);
+```
+Source: Fastify route schema support plus Zod JSON Schema emission. `[CITED: https://fastify.dev/docs/latest/Reference/Routes/][CITED: https://zod.dev/json-schema]`
+
+### Pattern 3: Segment-Scoped Extraction Pipeline
+**What:** Run deterministic segmentation first, then invoke one model call per segment, parse into a typed extraction contract, and run canonical normalization before the session leaves extraction. `[VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md][ASSUMED]`
+**When to use:** On first submission and after boundary edits that materially change segment text. `[VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md][ASSUMED]`
+**Why:** Phase 5 locks chunk-oriented review and editable boundaries, so extraction needs to be segment-scoped rather than whole-draft canonicalization. `[VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md]`
+**Example:**
+```typescript
+const response = await openai.responses.parse({
+  model: configuredModel,
+  input: buildSegmentPrompt(segment),
+  text: { format: zodTextFormat(ExtractionContract, "segment_extraction") }
+});
+
+const parsed = readParsedMessage(response);
+const normalized = normalizeExtraction(parsed);
+```
+Source: OpenAI structured outputs guide and repo normalization boundary requirement. `[CITED: https://developers.openai.com/api/docs/guides/structured-outputs][VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md]`
+
+### Pattern 4: Review Overlay, Then Canonical Promotion
+**What:** Store extracted and corrected review items in dedicated review tables, then translate approved segment data into a full canonical patch and persist a new child revision. `[ASSUMED]`
+**When to use:** On every segment approval. `[VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md]`
+**Why:** The current `StoryRepository` is revision-scoped, upsert-based, and has no delete semantics, so partial same-revision writes can leave stale rows or blur audit history. `[VERIFIED: src/storage/repositories/story-repository.ts][VERIFIED: rg -n "DELETE FROM" src/storage/repositories/story-repository.ts src/storage/repositories]`
+**Example:**
+```typescript
+const base = await storyRepository.loadGraph(storyId, currentApprovedRevisionId);
+const nextGraph = applyApprovedSegment(base, approvedSegmentPatch, newRevisionId);
+await storyRepository.saveGraph(nextGraph);
+```
+Source: current story repository contract. `[VERIFIED: src/storage/repositories/story-repository.ts]`
+
+### Pattern 5: Dual Promotion Path for Story Graph + Rule Packs
+**What:** Promote approved entities/events/state boundaries through `StoryRepository`, and promote approved rule assumptions through `RuleRepository`. `[VERIFIED: src/storage/repositories/story-repository.ts][VERIFIED: src/storage/repositories/rule-repository.ts]`
+**When to use:** Any approved segment that contains world-rule assumptions or explicit rule declarations. `[VERIFIED: .planning/ROADMAP.md][VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md]`
+**Why:** `executeVerdictRun()` loads rules via `RuleRepository.listRuleVersionsForRevision()`, so approved rule assumptions must enter the canonical rule store before manual checks can see them. `[VERIFIED: src/services/verdict-runner.ts][VERIFIED: src/storage/repositories/rule-repository.ts]`
+**Example:**
+```typescript
+await ruleRepository.saveRulePack(
+  {
+    ...approvedRule.metadata,
+    revisionId: newRevisionId,
+    sourceKind: "normalized",
+    active: true
+  },
+  {
+    ...approvedRule.version,
+    validationStatus: "validated"
+  }
+);
+```
+Source: current rule repository contracts; `validationStatus: "validated"` for human-approved rules is the recommended Phase 5 mapping. `[VERIFIED: src/storage/repositories/rule-repository.ts][VERIFIED: src/domain/rules.ts][ASSUMED]`
+
+### Pattern 6: Manual Check Route as a Thin Adapter
+**What:** Expose a `check` route that resolves the latest approved revision for the session and calls `executeVerdictRun()` with `triggerKind: "manual"`. `[VERIFIED: src/services/verdict-runner.ts][ASSUMED]`
+**When to use:** `POST /review-sessions/:sessionId/check`. `[ASSUMED]`
+**Example:**
+```typescript
+const result = await executeVerdictRun({
   storyId,
-  revisionId,
-  inputKind: "full_draft",
-  rawText
-});
-```
-
-### Pattern 2: Extract to Candidate Objects, Not Canonical Truth
-**What:** Convert prose into typed candidate structures that mirror canonical entities/events/state/rules but remain marked as extracted proposals.
-**When to use:** Immediately after segmentation and LLM-assisted extraction.
-**Example:**
-```typescript
-const candidates = await extractStructuredCandidates({
-  segmentText,
-  promptFamily: "phase5-default"
-});
-```
-
-### Pattern 3: Approval-Gated Canonical Promotion
-**What:** Only approved segments may update the revision's canonical graph. Unapproved or ambiguous segments stay in review storage.
-**When to use:** After structured edits are applied and the segment is explicitly approved.
-**Example:**
-```typescript
-await promoteApprovedSegment({
-  sessionId,
-  segmentId,
+  revisionId: latestApprovedRevisionId,
   storyRepository,
-  provenanceRepository
-});
-```
-
-### Pattern 4: Manual Check Orchestration
-**What:** `check` is a separate action that reads the approved canonical revision and runs the existing verdict pipeline.
-**When to use:** Only when the user explicitly requests a check.
-**Example:**
-```typescript
-const run = await executeApprovedRevisionCheck({
-  storyId,
-  revisionId,
+  ruleRepository,
+  verdictRepository,
+  verdictRunRepository,
   triggerKind: "manual"
 });
 ```
-
-### Pattern 5: Thin API Adapters
-**What:** Fastify routes validate request/response payloads, call services, and return explicit workflow state, but do not contain extraction or promotion logic themselves.
-**When to use:** For every HTTP surface added in Phase 5.
-**Example:**
-```typescript
-app.post("/ingestion/submissions", async (request, reply) => {
-  const result = await submitNaturalLanguageDraft(request.body);
-  return reply.code(202).send(result);
-});
-```
+Source: current verdict runner API. `[VERIFIED: src/services/verdict-runner.ts]`
 
 ### Anti-Patterns to Avoid
-- **Directly writing LLM output into canonical tables:** This would bypass review and deterministic normalization.
-- **Hidden auto-fixes on normalization failure:** Ambiguous or incomplete output must remain visible as `review_needed`.
-- **Combining approval with automatic checking:** This collapses two locked workflow states into one implicit step.
-- **Route handlers acting as the business layer:** It makes the first API surface difficult to test and extend.
-- **Storing only final corrected values:** It destroys the extraction audit trail the user explicitly requested.
+- **Direct model-to-canonical writes:** The extraction layer is explicitly advisory only and canonical promotion is approval-gated. `[VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md]`
+- **Reusing model-generated canonical IDs:** Canonical repositories upsert by IDs, so untrusted IDs can overwrite or collide with real records. `[VERIFIED: src/storage/repositories/story-repository.ts][VERIFIED: src/storage/repositories/rule-repository.ts]`
+- **Storing the whole review session as one opaque blob:** Phase 5 needs per-segment approval, per-item provenance, and original-vs-corrected audit trails, which are awkward to query if everything lives in one document. `[VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md][CITED: https://www.postgresql.org/docs/18/functions-json.html][ASSUMED]`
+- **Doing database lookups during schema validation:** Fastify docs explicitly say async validation work should move to hooks such as `preHandler` after initial schema validation. `[CITED: https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/]`
+- **Auto-running checks on extraction or approval:** Manual-only check triggering is a locked decision for this phase. `[VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md]`
 </architecture_patterns>
 
 <dont_hand_roll>
 ## Don't Hand-Roll
 
-Problems that look simple but have existing solutions:
-
 | Problem | Don't Build | Use Instead | Why |
 |---------|-------------|-------------|-----|
-| Canonical output shape | A new prose-specific event/state model | Existing canonical schemas in `src/domain` | Keeps extraction output promotable without ad hoc translation |
-| Check execution | A second verdict orchestration path | `executeVerdictRun` from `src/services/verdict-runner.ts` | Preserves run lineage, finding IDs, and prior run chaining |
-| Provenance tracking | Freeform JSON blobs with no owner model | Existing `ProvenanceRepository` patterns plus typed review-session records | Keeps auditability queryable and consistent |
-| API validation | Untyped route bodies | Zod-backed request/response contracts | Prevents invalid extracted or patched shapes from leaking across boundaries |
+| HTTP routing and validation | Custom `node:http` router plus manual body parsing | Fastify routes/plugins with JSON Schema | Fastify already gives route schemas, plugin encapsulation, and test injection. `[CITED: https://fastify.dev/docs/latest/Reference/Routes/][CITED: https://fastify.dev/docs/latest/Reference/Plugins/][CITED: https://fastify.dev/docs/latest/Guides/Testing/]` |
+| Model JSON discipline | Prompt-only “return JSON” plus retries/regex cleanup | Structured Outputs with Zod and deterministic normalization | OpenAI docs recommend Structured Outputs over JSON mode when schema adherence matters, and the SDK supports Zod helpers plus refusal handling. `[CITED: https://developers.openai.com/api/docs/guides/structured-outputs]` |
+| Route JSON Schema duplication | Handwritten JSON Schema copies beside Zod types | `z.toJSONSchema()` from the Zod source schema | Reduces schema drift across routes, model contracts, and internal DTOs. `[CITED: https://zod.dev/json-schema][CITED: https://developers.openai.com/api/docs/guides/structured-outputs]` |
+| Manual review-to-check orchestration | New route-local verdict logic | `executeVerdictRun()` | Run history, `triggerKind`, and verdict persistence already exist. `[VERIFIED: src/services/verdict-runner.ts]` |
+| Partial canonical mutation | Writing segment fragments directly into the current revision | Load base graph, apply approved patch, persist a new revision snapshot | Current story persistence is snapshot/upsert oriented and not patch/delete safe. `[VERIFIED: src/storage/repositories/story-repository.ts][VERIFIED: rg -n "DELETE FROM" src/storage/repositories/story-repository.ts src/storage/repositories][ASSUMED]` |
+| Route integration tests | Spinning up sockets first | `fastify.inject()` plus pg-mem | Fastify docs recommend injection and current repo already proves pg-mem-based service tests work. `[CITED: https://fastify.dev/docs/latest/Guides/Testing/][VERIFIED: tests/engine/verdict-runner.test.ts]` |
 
-**Key insight:** Phase 5 should add an intake-and-review shell around the engine, not a parallel story model and not a second checker.
+**Key insight:** Phase 5 should hand-roll the review-state domain and approval logic, but it should not hand-roll transport, JSON schema duplication, or verdict execution plumbing that the repo and selected libraries already solve. `[VERIFIED: src/services/verdict-runner.ts][VERIFIED: package.json][ASSUMED]`
 </dont_hand_roll>
 
 <common_pitfalls>
 ## Common Pitfalls
 
-### Pitfall 1: Review State Leaking into Canonical Tables Too Early
-**What goes wrong:** Draft candidates and half-corrected structures get stored as if they were approved story facts.
-**Why it happens:** The implementation reuses canonical tables as temporary review storage.
-**How to avoid:** Store review-session state separately and promote only approved segments into the canonical revision.
-**Warning signs:** `StoryRepository.saveGraph` is called during extraction or patching rather than approval.
+### Pitfall 1: Canonical ID Pollution From Extraction Output
+**What goes wrong:** The model invents IDs or reuses existing IDs, and approval overwrites unrelated entities/events/rules. `[VERIFIED: src/storage/repositories/story-repository.ts][VERIFIED: src/storage/repositories/rule-repository.ts]`
+**Why it happens:** Canonical repositories use ID-keyed upserts, and Phase 5 is the first layer where untrusted model output reaches those boundaries. `[VERIFIED: src/storage/repositories/story-repository.ts][VERIFIED: src/storage/repositories/rule-repository.ts]`
+**How to avoid:** Treat model identifiers as ephemeral review-local IDs only; generate or resolve canonical IDs server-side during normalization/promotion. `[ASSUMED]`
+**Warning signs:** Approved segments unexpectedly replace earlier records, or two different extracted items collapse into one canonical row. `[ASSUMED]`
 
-### Pitfall 2: Full-Draft Intake Becoming an Opaque One-Shot Import
-**What goes wrong:** A long draft enters the system and cannot be corrected incrementally.
-**Why it happens:** Automatic segmentation is treated as an internal detail instead of a user-facing review unit.
-**How to avoid:** Persist explicit segment records and expose segment-level status, edits, and approval.
-**Warning signs:** API responses have only session-level status with no segment list.
+### Pitfall 2: Review-State Leakage Into Canonical Revisions
+**What goes wrong:** Unapproved or partially corrected structure becomes visible to verdict runs. `[VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md]`
+**Why it happens:** The API writes extraction output directly into canonical tables or allows `check` on a review overlay instead of a promoted revision. `[ASSUMED]`
+**How to avoid:** Keep review tables separate from canonical tables and make `check` resolve only the latest approved revision. `[ASSUMED][VERIFIED: src/services/verdict-runner.ts]`
+**Warning signs:** A session in `needs_review` can still produce verdicts over unapproved entities or rules. `[ASSUMED]`
 
-### Pitfall 3: Ambiguity Hidden Behind a Single “Best Guess”
-**What goes wrong:** The system picks one parse and discards uncertainty or alternative candidates.
-**Why it happens:** The extraction service optimizes for a clean final shape instead of an auditable review surface.
-**How to avoid:** Preserve `confidence`, `provenance`, and `review_needed` on every candidate, and keep original extracted values even after user edits.
-**Warning signs:** Review payloads contain only corrected values and no extraction metadata.
+### Pitfall 3: Content-Type Validation Gaps
+**What goes wrong:** Route validation does not run for a parsed body, or it is bypassed by a crafted `Content-Type` header. `[CITED: https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/][CITED: https://github.com/fastify/fastify/security/advisories/GHSA-jx2c-rxcm-jvmq]`
+**Why it happens:** Fastify validates only `application/json` by default unless `content` is fully enumerated, and Fastify versions `< 5.7.2` had a published validation-bypass advisory around `Content-Type` handling. `[CITED: https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/][CITED: https://github.com/fastify/fastify/security/advisories/GHSA-jx2c-rxcm-jvmq]`
+**How to avoid:** Pin Fastify to `>= 5.7.2` and prefer a JSON request envelope unless every accepted content type is explicitly mapped. `[VERIFIED: npm registry][CITED: https://github.com/fastify/fastify/security/advisories/GHSA-jx2c-rxcm-jvmq][CITED: https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/]`
+**Warning signs:** Requests with nonstandard `Content-Type` values are parsed successfully but never hit the intended body schema. `[CITED: https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/]`
 
-### Pitfall 4: Manual Check Policy Eroded by Convenience Shortcuts
-**What goes wrong:** Submission or approval begins to trigger verdict runs implicitly.
-**Why it happens:** The implementation tries to provide immediate feedback from inside the review loop.
-**How to avoid:** Keep `check` as a separate endpoint and state transition that explicitly calls the verdict runner.
-**Warning signs:** Approval handlers call `executeVerdictRun` directly.
+### Pitfall 4: Schema Drift Between Route DTOs, Model Contracts, and Canonical Normalizers
+**What goes wrong:** The route accepts one shape, the model emits another, and normalization expects a third. `[ASSUMED]`
+**Why it happens:** Teams duplicate JSON Schema, TypeScript types, and prompt contracts by hand. `[ASSUMED]`
+**How to avoid:** Keep Zod as the source schema and derive JSON Schema plus extraction contracts from it. `[CITED: https://zod.dev/json-schema][CITED: https://developers.openai.com/api/docs/guides/structured-outputs]`
+**Warning signs:** Route tests pass, but extraction parse or normalization fails on the same payload family. `[ASSUMED]`
 
-### Pitfall 5: API Layer Coupled to a Specific Model Vendor
-**What goes wrong:** Route design or persistence formats become tied to one LLM API response shape.
-**Why it happens:** Extraction transport objects are stored raw instead of normalized into project contracts.
-**How to avoid:** Normalize all extraction output into repo-owned schemas before persistence and hide vendor payloads behind service boundaries.
-**Warning signs:** Repository methods accept provider-native payloads or route responses leak raw model output.
+### Pitfall 5: Approved Rule Assumptions Saved With the Wrong Canonical Semantics
+**What goes wrong:** Unapproved or draft rule assumptions influence verdict runs, or approved ones never become active. `[VERIFIED: src/storage/repositories/rule-repository.ts][VERIFIED: src/services/verdict-runner.ts]`
+**Why it happens:** `executeVerdictRun()` loads rule versions for the revision from `RuleRepository`, and the current repository query does not filter out `draft` rule versions. `[VERIFIED: src/services/verdict-runner.ts][VERIFIED: src/storage/repositories/rule-repository.ts]`
+**How to avoid:** Keep extracted rule assumptions in review state until approval, and on approval save them intentionally with `sourceKind: "normalized"` and a human-approved validation state. `[VERIFIED: src/domain/rules.ts][ASSUMED]`
+**Warning signs:** A rule assumption begins affecting checks before the segment is approved, or approved rule changes never appear in active-rule resolution. `[VERIFIED: src/engine/rule-activation.ts][ASSUMED]`
+
+### Pitfall 6: Async Work Inside Validation
+**What goes wrong:** Validation becomes a hidden database or network bottleneck and can turn malformed input into a denial-of-service amplifier. `[CITED: https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/]`
+**Why it happens:** Developers attempt entity existence checks, story lookup, or revision lookup inside schema validation. `[ASSUMED]`
+**How to avoid:** Keep route validation purely structural, then do story/revision existence, stale-session checks, and authorization-like checks in `preHandler` or service code. `[CITED: https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/][ASSUMED]`
+**Warning signs:** Simple malformed requests cause database traffic or model calls before a 4xx response is returned. `[ASSUMED]`
 </common_pitfalls>
 
-<sota_updates>
-## Current-Practice Update
+<code_examples>
+## Code Examples
 
-StoryGraph is now ready for a natural-language intake layer because earlier phases already established:
+Verified patterns from official sources and the live repo:
 
-- canonical event/state/rule schemas,
-- repository-backed revision persistence,
-- provenance storage,
-- deterministic verdict execution, and
-- advisory soft-prior separation.
+### Fastify Route With JSON-Schema Body Validation
+```typescript
+const SubmitSessionRequest = z.object({
+  submissionKind: z.enum(["chunk", "full_draft"]),
+  text: z.string().min(1),
+  storyId: z.string().optional(),
+  revisionId: z.string().optional()
+});
 
-That means Phase 5 does **not** need to invent a new reasoning core. It only needs to wrap the existing one with:
+app.post("/review-sessions", {
+  schema: {
+    body: z.toJSONSchema(SubmitSessionRequest)
+  }
+}, async (request, reply) => {
+  return reply.code(202).send(await reviewSessionService.submit(request.body));
+});
+```
+Source: Fastify route schema support + Zod JSON Schema conversion. `[CITED: https://fastify.dev/docs/latest/Reference/Routes/][CITED: https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/][CITED: https://zod.dev/json-schema]`
 
-- review-session persistence,
-- candidate extraction and normalization,
-- approval-gated promotion, and
-- API endpoints that expose the workflow explicitly.
+### Structured Extraction With Zod-Constrained Output
+```typescript
+const response = await openai.responses.parse({
+  model: configuredModel,
+  input: buildSegmentPrompt(segmentText),
+  text: {
+    format: zodTextFormat(ExtractionContract, "segment_extraction")
+  }
+});
 
-**New tools/patterns to consider later:**
-- alternate extraction prompt families for different narrative styles,
-- retrieval-assisted few-shot examples for extraction repair,
-- multi-pass extraction that separates entities, events, and rules,
-- collaborative review queues or UI-driven review dashboards.
+const parsed = readParsedMessage(response);
+```
+Source: OpenAI Structured Outputs guide for Responses API + Zod helper usage. `[CITED: https://developers.openai.com/api/docs/guides/structured-outputs]`
 
-**Deprecated/outdated for this phase:**
-- automatic realtime verdicting during drafting,
-- free-text-only correction loops,
-- opaque “AI parsed it for you” APIs without provenance and audit data,
-- provider-native payloads as a long-term persistence format.
-</sota_updates>
+### Manual Check Integration Through Existing Verdict Runner
+```typescript
+const result = await executeVerdictRun({
+  storyId,
+  revisionId,
+  storyRepository,
+  ruleRepository,
+  verdictRepository,
+  verdictRunRepository,
+  triggerKind: "manual"
+});
+```
+Source: current repo service boundary. `[VERIFIED: src/services/verdict-runner.ts]`
 
-## Validation Architecture
+### Fastify Route Testing Without Opening a Socket
+```typescript
+const app = buildApp(testDeps);
+const response = await app.inject({
+  method: "POST",
+  url: "/review-sessions",
+  payload: requestBody
+});
+```
+Source: Fastify testing guide and current repo’s pg-mem test style. `[CITED: https://fastify.dev/docs/latest/Guides/Testing/][VERIFIED: tests/engine/verdict-runner.test.ts]`
+</code_examples>
 
-Phase 5 should preserve the same deterministic feedback loop as earlier phases, but now split validation across service, storage, and API boundaries:
+<state_of_the_art>
+## State of the Art
 
-- `tests/services/natural-language-extraction.test.ts` — chunk and full-draft submissions, segmentation, schema validation, confidence metadata, and `review_needed` routing
-- `tests/storage/ingestion-session-repository.test.ts` — review-session persistence, segment status transitions, original-versus-corrected values, and provenance retention
-- `tests/services/ingestion-review-workflow.test.ts` — structured patching, segment approval, and canonical promotion rules
-- `tests/api/ingestion-review-api.test.ts` — submit/extract/read/review endpoints returning the explicit workflow states
-- `tests/api/check-controls-api.test.ts` — manual `check` trigger behavior, separation from approval, and verdict-run integration
+| Old Approach | Current Approach | When Changed | Impact |
+|--------------|------------------|--------------|--------|
+| Prompt-only “return JSON” plus retries | Structured Outputs with schema adherence and explicit refusal handling. `[CITED: https://developers.openai.com/api/docs/guides/structured-outputs]` | Current OpenAI docs; Structured Outputs are documented for current model families and recommended over JSON mode when possible. `[CITED: https://developers.openai.com/api/docs/guides/structured-outputs]` | Better extraction contract stability for Phase 5. `[CITED: https://developers.openai.com/api/docs/guides/structured-outputs]` |
+| Separate handwritten JSON Schema beside runtime types | Zod 4 emitting JSON Schema from the runtime schema. `[CITED: https://zod.dev/json-schema]` | Zod 4 became stable on npm in `2025-07-09`, and the current docs expose `z.toJSONSchema()`. `[VERIFIED: npm registry][CITED: https://zod.dev/json-schema]` | One schema source across routes, extraction DTOs, and normalization inputs. `[CITED: https://zod.dev/json-schema][ASSUMED]` |
+| Trusting content-type-discriminated validation without extra care | Fastify `>= 5.7.2` plus explicit content maps or a JSON envelope. `[CITED: https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/][CITED: https://github.com/fastify/fastify/security/advisories/GHSA-jx2c-rxcm-jvmq]` | Fastify advisory GHSA-jx2c-rxcm-jvmq published `2026-02-02`; patched in `5.7.2`. `[CITED: https://github.com/fastify/fastify/security/advisories/GHSA-jx2c-rxcm-jvmq]` | First API surface should pin a patched Fastify and keep request validation simple. `[VERIFIED: npm registry][ASSUMED]` |
 
-Vitest already exists, so Wave 0 is not about installing a test framework. Instead, Wave 0 for Phase 5 is creating the missing service and API test files early enough that every task has a concrete verification target. A dedicated script such as `npm run test:ingestion` should bundle the Phase 5 suite without watch mode.
+**Deprecated/outdated:**
+- JSON mode as the primary extraction contract for this phase is outdated when Structured Outputs are available, because JSON mode does not guarantee schema adherence. `[CITED: https://developers.openai.com/api/docs/guides/structured-outputs]`
+- Writing review data directly into the current canonical revision is outdated for this repo shape, because the repository layer is already revision-oriented and run-audited. `[VERIFIED: src/domain/entities.ts][VERIFIED: src/services/verdict-runner.ts][ASSUMED]`
+</state_of_the_art>
 
-The API tests should prefer Fastify's injection flow so Phase 5 can verify request/response behavior without external ports or browsers.
+<assumptions_log>
+## Assumptions Log
+
+| # | Claim | Section | Risk if Wrong |
+|---|-------|---------|---------------|
+| A1 | Review state should live in dedicated `review_sessions`, `review_segments`, and `review_items` tables instead of a single session blob. | Architecture Patterns | Planner may choose a different persistence split and need to rework repository/task boundaries. |
+| A2 | Each approved segment should create a new child canonical revision rather than mutating the current revision in place. | Summary, Architecture Patterns | If the project prefers in-place mutation, promotion and check flows will need different audit guarantees. |
+| A3 | OpenAI Responses API should be the initial single-model extraction adapter for Phase 5. | Standard Stack | If another provider is chosen, only the adapter layer and package install change, but route/review/promotion design should stay similar. |
+| A4 | Human-approved extracted rule assumptions should be persisted with a validation state equivalent to “validated”. | Architecture Patterns, Common Pitfalls | If current rule validation semantics differ, approved rules may accidentally remain inactive or draft-only. |
+
+**If this table is empty:** All claims in this research were verified or cited — no user confirmation needed.
+</assumptions_log>
 
 <open_questions>
 ## Open Questions
 
-1. **Should review-session state live in new dedicated tables or in JSON columns attached to revisions?**
-   - What we know: Approved canonical data must stay separate from in-review extracted candidates.
-   - What's unclear: Whether the cleanest implementation is normalized session/segment tables or revision-level JSON sidecars.
-   - Recommendation: Favor dedicated review-session tables because Phase 5 needs explicit segment status, provenance, and original-vs-corrected value history.
+1. **How should a brand-new draft session satisfy the existing story metadata contract?**
+   - What we know: `StoryRecordSchema` requires `title` and `defaultRulePackName`, and `StoryRevisionRecordSchema` requires `storyId`, `revisionId`, `sourceKind`, and `createdAt`. `[VERIFIED: src/domain/entities.ts]`
+   - What's unclear: A greenfield submission may start from prose only, with no story metadata yet. `[VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md]`
+   - Recommendation: Decide in Plan 05-01 whether submission must include minimal draft metadata up front or whether the API creates placeholder story metadata until first approval. `[ASSUMED]`
 
-2. **Should approval write directly into the active revision or into a derived revision branch?**
-   - What we know: The user wants existing `storyId/revisionId` targeting and approval-gated promotion.
-   - What's unclear: Whether promotion mutates the targeted revision in place or creates a derived revision snapshot for approved intake results.
-   - Recommendation: Start by preserving the existing revision target model, but keep the service boundary explicit so derived revisions can be added later without rewriting API contracts.
-
-3. **How much raw extraction trace should be retained beyond normalized candidates?**
-   - What we know: Source spans, confidence, and original extracted values are required.
-   - What's unclear: Whether raw provider prompt/response payloads should also be stored.
-   - Recommendation: Store only normalized candidates plus minimal provider metadata in Phase 5. Avoid provider-native payload persistence unless debugging proves it necessary.
+2. **How should stale review sessions behave when the target revision changes after submission?**
+   - What we know: The phase supports attaching intake to an existing `storyId/revisionId`, and canonical revisions already track lineage through `basedOnRevisionId`. `[VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md][VERIFIED: src/domain/entities.ts]`
+   - What's unclear: The repo has no current merge/rebase model for concurrent review sessions or approvals against a moved target. `[VERIFIED: codebase grep][ASSUMED]`
+   - Recommendation: Start Phase 5 with single-writer semantics per target revision and mark stale sessions as requiring re-extraction/rebase once the approved revision chain advances. `[ASSUMED]`
 </open_questions>
+
+<environment_availability>
+## Environment Availability
+
+| Dependency | Required By | Available | Version | Fallback |
+|------------|------------|-----------|---------|----------|
+| Node.js | API server/runtime | ✓ `[VERIFIED: local command]` | `25.9.0` `[VERIFIED: local command]` | Project guidance still targets Node 24 LTS, so CI should pin the project baseline even though this machine is newer. `[VERIFIED: AGENTS.md][ASSUMED]` |
+| npm | Package install and scripts | ✓ `[VERIFIED: local command]` | `11.12.1` `[VERIFIED: local command]` | — |
+| PostgreSQL CLI/service | Live API persistence outside tests | ✗ `[VERIFIED: local command]` | `—` | `pg-mem` covers automated tests only; there is no live DB fallback for manual E2E API runs. `[VERIFIED: package.json][VERIFIED: tests/engine/verdict-runner.test.ts]` |
+| `OPENAI_API_KEY` | Live extraction calls | ✗ `[VERIFIED: local command]` | `—` | Use a mock extraction adapter in automated tests; live extraction remains blocked without credentials. `[VERIFIED: local command][ASSUMED]` |
+| `fastify` package | First API surface | ✗ in repo `[VERIFIED: package.json]` | `—` | Install `fastify@5.8.4`. `[VERIFIED: npm registry]` |
+| `openai` package | Default extraction adapter | ✗ in repo `[VERIFIED: package.json]` | `—` | Install `openai@6.34.0`, or swap in another provider behind the same adapter interface if the user changes provider. `[VERIFIED: npm registry][ASSUMED]` |
+
+**Missing dependencies with no fallback:**
+- Live extraction credentials are absent, so real model-backed extraction cannot be exercised on this machine yet. `[VERIFIED: local command]`
+- A live PostgreSQL runtime is absent, so manual end-to-end API verification against a real DB is not available yet. `[VERIFIED: local command]`
+
+**Missing dependencies with fallback:**
+- `fastify` and `openai` are not in `package.json` yet, but both are ordinary npm installs and do not block planning. `[VERIFIED: package.json][VERIFIED: npm registry]`
+- PostgreSQL is not available locally, but pg-mem is already sufficient for route/service/repository automation during Phase 5 implementation. `[VERIFIED: package.json][VERIFIED: tests/engine/verdict-runner.test.ts]`
+</environment_availability>
+
+<validation_architecture>
+## Validation Architecture
+
+### Test Framework
+| Property | Value |
+|----------|-------|
+| Framework | `Vitest 3.2.4` installed, `4.1.4` latest. `[VERIFIED: package.json][VERIFIED: npm registry]` |
+| Config file | `vitest.config.ts`. `[VERIFIED: vitest.config.ts]` |
+| Quick run command | `npx vitest run tests/api/review-session-routes.test.ts tests/services/extraction-pipeline.test.ts tests/services/segment-approval-service.test.ts tests/api/check-route.test.ts -x` `[ASSUMED]` |
+| Full suite command | `npm run test && npm run typecheck` `[VERIFIED: package.json]` |
+
+### Phase Requirements → Test Map
+| Req ID | Behavior | Test Type | Automated Command | File Exists? |
+|--------|----------|-----------|-------------------|-------------|
+| FLOW-01 | Submit prose, segment it, parse extraction output, preserve review-needed ambiguity, and expose reviewable structured candidates. `[VERIFIED: .planning/REQUIREMENTS.md][VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md]` | integration | `npx vitest run tests/api/review-session-routes.test.ts tests/services/extraction-pipeline.test.ts tests/storage/review-session-repository.test.ts -x` `[ASSUMED]` | ❌ Wave 0 `[VERIFIED: rg --files tests]` |
+| FLOW-01 | Approve a segment and promote only approved structure into a new canonical revision while preserving original-vs-corrected audit data. `[VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md]` | integration | `npx vitest run tests/services/segment-approval-service.test.ts tests/storage/review-session-repository.test.ts tests/storage/promotion-roundtrip.test.ts -x` `[ASSUMED]` | ❌ Wave 0 `[VERIFIED: rg --files tests]` |
+| FLOW-03 | Run checks only on explicit request and only against the latest approved revision. `[VERIFIED: .planning/REQUIREMENTS.md][VERIFIED: src/services/verdict-runner.ts]` | integration | `npx vitest run tests/api/check-route.test.ts tests/services/check-session-service.test.ts tests/engine/verdict-runner.test.ts -x` `[ASSUMED]` | ❌ Wave 0 for new API/service tests; ✅ existing `tests/engine/verdict-runner.test.ts`. `[VERIFIED: rg --files tests]` |
+
+### Sampling Rate
+- **Per task commit:** Run the smallest relevant Phase 5 Vitest command for the touched route/service/repository files. `[ASSUMED]`
+- **Per wave merge:** Run `npm run test`. `[VERIFIED: package.json]`
+- **Phase gate:** Run `npm run test && npm run typecheck` before `/gsd-verify-work`. `[VERIFIED: package.json]`
+
+### Wave 0 Gaps
+- [ ] `tests/api/review-session-routes.test.ts` — request/response validation, state transitions, and submission routing for `FLOW-01`. `[VERIFIED: rg --files tests][ASSUMED]`
+- [ ] `tests/services/extraction-pipeline.test.ts` — segmentation, structured parse, normalization failure to `review_needed`, and refusal handling for `FLOW-01`. `[VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md][ASSUMED]`
+- [ ] `tests/storage/review-session-repository.test.ts` — review/session persistence round-trips, provenance spans, and original-vs-corrected audit fields. `[ASSUMED]`
+- [ ] `tests/services/segment-approval-service.test.ts` — promotion into new revision snapshots and rule-pack promotion behavior. `[ASSUMED]`
+- [ ] `tests/api/check-route.test.ts` and `tests/services/check-session-service.test.ts` — manual-only check trigger integration with `executeVerdictRun`. `[VERIFIED: src/services/verdict-runner.ts][ASSUMED]`
+- [ ] `src/api/build-app.ts` test harness entrypoint so `fastify.inject()` can exercise routes without opening sockets. `[CITED: https://fastify.dev/docs/latest/Guides/Testing/][ASSUMED]`
+- [ ] Package install: `npm install fastify fastify-plugin openai`. `[VERIFIED: package.json][VERIFIED: npm registry]`
+</validation_architecture>
+
+<security_domain>
+## Security Domain
+
+### Applicable ASVS Categories
+| ASVS Category | Applies | Standard Control |
+|---------------|---------|-----------------|
+| V2 Authentication | no `[VERIFIED: .planning/REQUIREMENTS.md]` | Authentication is not part of Phase 5 requirements or current roadmap scope. `[VERIFIED: .planning/ROADMAP.md]` |
+| V3 Session Management | no `[VERIFIED: .planning/REQUIREMENTS.md]` | Review sessions are workflow records, not auth sessions, in the current scope. `[ASSUMED]` |
+| V4 Access Control | yes `[ASSUMED]` | Keep the first API surface local/trusted-by-default and route all mutations through explicit `storyId/revisionId` plus approval boundaries; do not deploy this unauthenticated API broadly without a later auth phase. `[VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md][ASSUMED]` |
+| V5 Input Validation | yes `[VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md]` | Fastify route schemas + Zod DTOs + deterministic normalization; model output never bypasses local validation. `[CITED: https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/][CITED: https://zod.dev/json-schema][VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md]` |
+| V6 Cryptography | yes `[ASSUMED]` | No hand-rolled crypto; keep provider credentials in environment variables only and rely on provider transport/TLS rather than app-layer custom cryptography. `[VERIFIED: local command][ASSUMED]` |
+
+### Known Threat Patterns for Phase 5
+| Pattern | STRIDE | Standard Mitigation |
+|---------|--------|---------------------|
+| Prompt injection or adversarial prose steering extraction | Tampering | Keep the model output schema-constrained, never allow tool calling for Phase 5 extraction, and require deterministic local normalization before review/canonical promotion. `[CITED: https://developers.openai.com/api/docs/guides/structured-outputs][VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md]` |
+| Content-Type validation bypass or parser/schema mismatch | Tampering | Pin Fastify `>= 5.7.2`, prefer JSON envelopes, and ensure every accepted content type has a schema entry if per-content-type validation is used. `[VERIFIED: npm registry][CITED: https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/][CITED: https://github.com/fastify/fastify/security/advisories/GHSA-jx2c-rxcm-jvmq]` |
+| Canonical overwrite via untrusted IDs | Tampering | Generate or resolve canonical IDs server-side during normalization/promotion; never trust model-supplied IDs. `[VERIFIED: src/storage/repositories/story-repository.ts][VERIFIED: src/storage/repositories/rule-repository.ts][ASSUMED]` |
+| Repudiation of model output vs human correction | Repudiation | Store original extracted value, corrected value, review-needed flags, and item-level provenance spans in review state; write canonical provenance records only on approval. `[VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md][VERIFIED: src/storage/repositories/provenance-repository.ts][ASSUMED]` |
+| Premature rule activation | Elevation of Privilege | Keep extracted rule assumptions out of canonical rule tables until approval, then promote them intentionally with normalized source metadata. `[VERIFIED: src/storage/repositories/rule-repository.ts][VERIFIED: src/services/verdict-runner.ts][ASSUMED]` |
+| Manual check against mixed approved/unapproved state | Integrity | Resolve the session’s latest approved revision and call `executeVerdictRun` only on that revision. `[VERIFIED: src/services/verdict-runner.ts][ASSUMED]` |
+</security_domain>
 
 <sources>
 ## Sources
 
 ### Primary (HIGH confidence)
-- `.planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md` — locked Phase 5 decisions and workflow boundaries
-- `.planning/ROADMAP.md` — Phase 5 goal, success criteria, and plan decomposition
-- `.planning/REQUIREMENTS.md` — requirement IDs `FLOW-01` and `FLOW-03`
-- `AGENTS.md` — project stack guidance, explainability constraints, and the recommendation to use Fastify for API surfaces
-- `src/services/verdict-runner.ts` — existing manual verdict execution path that Phase 5 should reuse for the `check` step
-- `src/storage/repositories/story-repository.ts` — canonical story/revision persistence boundary for approved segment promotion
-- `src/storage/repositories/provenance-repository.ts` — existing provenance persistence pattern that Phase 5 should extend for item-level source and correction trails
-- `src/services/explained-verdicts.ts` and `src/services/index.ts` — current service-layer orchestration and export patterns
-- `src/storage/schema.ts` — current migration loading path relevant if Phase 5 adds review-session tables
+- `AGENTS.md` — project stack guidance and workflow constraints. `[VERIFIED: local file]`
+- `.planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md` — locked decisions and phase boundary. `[VERIFIED: local file]`
+- `.planning/REQUIREMENTS.md` — `FLOW-01` and `FLOW-03`. `[VERIFIED: local file]`
+- `.planning/ROADMAP.md` — Phase 5 goals and plan split. `[VERIFIED: local file]`
+- `package.json` and `vitest.config.ts` — current dependency and validation baseline. `[VERIFIED: local files]`
+- `src/services/verdict-runner.ts` — manual check integration point. `[VERIFIED: local file]`
+- `src/storage/repositories/story-repository.ts` — revision-scoped canonical persistence semantics. `[VERIFIED: local file]`
+- `src/storage/repositories/rule-repository.ts` and `src/domain/rules.ts` — canonical rule-promotion boundary. `[VERIFIED: local files]`
+- `src/storage/repositories/provenance-repository.ts` — canonical provenance boundary. `[VERIFIED: local file]`
+- `tests/engine/verdict-runner.test.ts` — existing pg-mem-backed service test pattern. `[VERIFIED: local file]`
+- https://fastify.dev/docs/latest/Reference/Routes/ — route schema and request/response contract support. `[CITED]`
+- https://fastify.dev/docs/latest/Reference/Plugins/ — plugin encapsulation and `fastify-plugin` recommendation. `[CITED]`
+- https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/ — validation behavior, content-type handling, and async-validation guidance. `[CITED]`
+- https://fastify.dev/docs/latest/Guides/Testing/ — `build app` split and `fastify.inject()` testing pattern. `[CITED]`
+- https://zod.dev/json-schema — `z.toJSONSchema()` support in Zod 4. `[CITED]`
+- https://developers.openai.com/api/docs/guides/structured-outputs — structured response format, refusal handling, Zod helpers, and JSON-mode tradeoffs. `[CITED]`
+- https://github.com/fastify/fastify/security/advisories/GHSA-jx2c-rxcm-jvmq — Fastify content-type validation-bypass advisory and patched version floor. `[CITED]`
+- https://www.postgresql.org/docs/18/functions-json.html — `jsonb` operators and mixed relational/JSON query support. `[CITED]`
+- npm registry (`npm view fastify/openai/zod/vitest/pg-mem/fastify-plugin`) — current package versions and publish/modified dates. `[VERIFIED: npm registry]`
+- Local environment probes (`node --version`, `npm --version`, `OPENAI_API_KEY` presence check, `npm run test:reasoning`, `npm run typecheck`) — runtime/tool availability and validation baseline. `[VERIFIED: local command]`
 
 ### Secondary (MEDIUM confidence)
-- `.planning/phases/01-canonical-narrative-schema/01-CONTEXT.md` — canonical contract expectations extraction must normalize into
-- `.planning/phases/02-hard-constraint-engine/02-CONTEXT.md` — hard-check boundaries that manual review/check flows must not blur
-- `.planning/phases/03-evidence-and-repair-reasoning/03-CONTEXT.md` — evidence and rerun semantics that manual checks already follow
-- `.planning/phases/04-corpus-priors-and-soft-pattern-layer/04-CONTEXT.md` — soft prior separation rules that should remain outside the ingestion layer
-- `tests/engine/verdict-runner.test.ts` — current pg-mem testing pattern for service-level orchestration
-- `vitest.config.ts` and `package.json` — current test harness and command surface
+- None.
 
-### Tertiary (LOW confidence - needs validation)
-- None. This research pass stayed inside locked project artifacts and the live codebase.
+### Tertiary (LOW confidence)
+- None.
 </sources>
 
 <metadata>
 ## Metadata
 
-**Research scope:**
-- Core technology: Fastify API boundary, LLM-assisted extraction, structured review sessions, approval-gated canonical promotion, manual check orchestration
-- Ecosystem: existing TypeScript/Zod contracts, repositories, provenance storage, and Vitest/pg-mem harness
-- Patterns: explicit state machine, candidate-vs-canonical separation, provenance-rich correction loop, service-first API design
-- Pitfalls: premature canonical writes, opaque full-draft imports, hidden ambiguity, auto-triggered checks, provider-coupled persistence
-
 **Confidence breakdown:**
-- Standard stack: HIGH - directly grounded in AGENTS guidance and current repo dependencies/patterns
-- Architecture: HIGH - reuses existing service/repository/verdict-runner boundaries rather than inventing a second reasoning path
-- Pitfalls: HIGH - derived from the exact failure modes created by adding natural-language ingestion in front of a deterministic core
-- Code examples: MEDIUM - they describe target shapes for planning, not an already implemented Phase 5 intake layer
+- Standard stack: HIGH — grounded in project guidance, live `package.json`, npm registry versions, and official Fastify/Zod/OpenAI docs. `[VERIFIED: AGENTS.md][VERIFIED: package.json][VERIFIED: npm registry][CITED: https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/][CITED: https://zod.dev/json-schema][CITED: https://developers.openai.com/api/docs/guides/structured-outputs]`
+- Architecture: MEDIUM-HIGH — strongly constrained by current repository contracts and phase decisions, but the exact review-session table split and revision-promotion workflow still require planner confirmation. `[VERIFIED: src/storage/repositories/story-repository.ts][VERIFIED: src/storage/repositories/rule-repository.ts][VERIFIED: .planning/phases/05-natural-language-ingestion-and-review-api/05-CONTEXT.md][ASSUMED]`
+- Pitfalls: HIGH — derived from current codebase semantics plus current Fastify validation/security docs. `[VERIFIED: src/storage/repositories/story-repository.ts][VERIFIED: src/services/verdict-runner.ts][CITED: https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/][CITED: https://github.com/fastify/fastify/security/advisories/GHSA-jx2c-rxcm-jvmq]`
 
 **Research date:** 2026-04-10
-**Valid until:** 2026-05-10
+**Valid until:** 2026-05-10 for codebase-derived findings; refresh package/doc/version checks sooner if implementation starts after that. `[ASSUMED]`
 </metadata>
-
----
-
-*Phase: 05-natural-language-ingestion-and-review-api*
-*Research completed: 2026-04-10*
-*Ready for planning: yes*
