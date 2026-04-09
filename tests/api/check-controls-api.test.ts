@@ -35,7 +35,14 @@ function correctedCharacterPayload(name: string, sessionId: string) {
   };
 }
 
-describe("ingestion review api", () => {
+async function countVerdictRuns(pool: Pool): Promise<number> {
+  const result = await pool.query<{ count: string }>(
+    `SELECT COUNT(*)::text AS count FROM verdict_runs`
+  );
+  return Number(result.rows[0]?.count ?? "0");
+}
+
+describe("ingestion check controls api", () => {
   let pool: Pool;
   let repository: IngestionSessionRepository;
   let storyRepository: StoryRepository;
@@ -60,7 +67,7 @@ describe("ingestion review api", () => {
     await pool.end();
   });
 
-  it("supports structured patch and segment approval with explicit workflow states", async () => {
+  it("returns 409 before approval, runs checks only on explicit request, and returns checked with a runId", async () => {
     const llmClient = createConfiguredIngestionLlmClient({
       modelName: "test-model",
       extractor: async ({ segmentId }) => ({
@@ -68,12 +75,12 @@ describe("ingestion review api", () => {
           {
             candidateId: `${segmentId}:entity`,
             candidateKind: "entity",
-            canonicalKey: `entity:${segmentId.endsWith(":1") ? "alice" : "bob"}`,
-            confidence: 0.95,
+            canonicalKey: "entity:alice",
+            confidence: 0.91,
             sourceSpanStart: 0,
             sourceSpanEnd: 5,
             provenanceDetail: { source: "api-test" },
-            payload: { name: segmentId.endsWith(":1") ? "Alice" : "Bob" }
+            payload: { name: "Alice" }
           }
         ]
       })
@@ -87,45 +94,41 @@ describe("ingestion review api", () => {
       verdictRepository,
       verdictRunRepository,
       llmClient,
-      generateId: () => "api-session",
-      now: () => "2026-04-10T02:00:00Z"
+      generateId: () => "check-session",
+      now: () => "2026-04-10T02:30:00Z"
     });
 
     const submitResponse = await app.inject({
       method: "POST",
       url: "/api/ingestion/submissions",
       payload: {
-        submissionKind: "full_draft",
-        text: "Scene One\nAlice wakes up.\n\nScene Two\nBob leaves.",
-        draftTitle: "API Draft"
+        submissionKind: "chunk",
+        text: "Alice wakes up.",
+        draftTitle: "Check Draft"
       }
     });
-
-    expect(submitResponse.statusCode).toBe(201);
     const submitted = submitResponse.json();
-    expect(submitted.workflowState).toBe("submitted");
-    expect(submitted.segments).toHaveLength(2);
+    expect(await countVerdictRuns(pool)).toBe(0);
 
     const extractResponse = await app.inject({
       method: "POST",
       url: `/api/ingestion/submissions/${submitted.sessionId}/extract`,
       payload: {}
     });
-
     expect(extractResponse.statusCode).toBe(200);
     const extracted = extractResponse.json();
-    expect(extracted.workflowState).toBe("needs_review");
-    expect(extracted.segments[0].candidates[0].normalizedPayload).toBeNull();
+    expect(await countVerdictRuns(pool)).toBe(0);
 
-    const firstPatchResponse = await app.inject({
+    const preApprovalCheck = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/check`
+    });
+    expect(preApprovalCheck.statusCode).toBe(409);
+
+    const patchResponse = await app.inject({
       method: "PATCH",
       url: `/api/ingestion/submissions/${submitted.sessionId}/segments/${submitted.segments[0].segmentId}`,
       payload: {
-        boundary: {
-          label: "Revised Scene One",
-          startOffset: 0,
-          endOffset: 21
-        },
         candidateCorrections: [
           {
             candidateId: extracted.segments[0].candidates[0].candidateId,
@@ -134,56 +137,27 @@ describe("ingestion review api", () => {
         ]
       }
     });
+    expect(patchResponse.statusCode).toBe(200);
+    expect(await countVerdictRuns(pool)).toBe(0);
 
-    expect(firstPatchResponse.statusCode).toBe(200);
-    const patchedFirst = firstPatchResponse.json();
-    expect(patchedFirst.workflowState).toBe("needs_review");
-    expect(patchedFirst.segments[0].label).toBe("Revised Scene One");
-    expect(patchedFirst.segments[0].candidates[0].correctedPayload.entityId).toBe("character:alice");
-
-    const firstApproveResponse = await app.inject({
+    const approveResponse = await app.inject({
       method: "POST",
       url: `/api/ingestion/submissions/${submitted.sessionId}/segments/${submitted.segments[0].segmentId}/approve`
     });
+    expect(approveResponse.statusCode).toBe(200);
+    expect(approveResponse.json().workflowState).toBe("approved");
+    expect(await countVerdictRuns(pool)).toBe(0);
 
-    expect(firstApproveResponse.statusCode).toBe(200);
-    const firstApproved = firstApproveResponse.json();
-    expect(firstApproved.workflowState).toBe("partially_approved");
-
-    const secondPatchResponse = await app.inject({
-      method: "PATCH",
-      url: `/api/ingestion/submissions/${submitted.sessionId}/segments/${submitted.segments[1].segmentId}`,
-      payload: {
-        candidateCorrections: [
-          {
-            candidateId: extracted.segments[1].candidates[0].candidateId,
-            correctedPayload: correctedCharacterPayload("Bob", submitted.sessionId)
-          }
-        ]
-      }
-    });
-
-    expect(secondPatchResponse.statusCode).toBe(200);
-
-    const secondApproveResponse = await app.inject({
+    const checkResponse = await app.inject({
       method: "POST",
-      url: `/api/ingestion/submissions/${submitted.sessionId}/segments/${submitted.segments[1].segmentId}/approve`
+      url: `/api/ingestion/submissions/${submitted.sessionId}/check`
     });
 
-    expect(secondApproveResponse.statusCode).toBe(200);
-    const fullyApproved = secondApproveResponse.json();
-    expect(fullyApproved.workflowState).toBe("approved");
-
-    const readResponse = await app.inject({
-      method: "GET",
-      url: `/api/ingestion/submissions/${submitted.sessionId}`
-    });
-
-    expect(readResponse.statusCode).toBe(200);
-    const readPayload = readResponse.json();
-    expect(readPayload.workflowState).toBe("approved");
-    expect(readPayload.segments[0].workflowState).toBe("approved");
-    expect(readPayload.segments[1].workflowState).toBe("approved");
+    expect(checkResponse.statusCode).toBe(200);
+    const checked = checkResponse.json();
+    expect(checked.workflowState).toBe("checked");
+    expect(checked.runId).toContain("run:");
+    expect(await countVerdictRuns(pool)).toBe(1);
 
     await app.close();
   });
