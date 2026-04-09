@@ -123,6 +123,7 @@ export const NotEvaluatedFindingSchema = z.object({
 export type NotEvaluatedFinding = z.infer<typeof NotEvaluatedFindingSchema>;
 
 export const VerdictEvidenceSchema = VerdictEvidenceBaseSchema.extend({
+  findingId: z.string().min(1).optional(),
   representativeChecker: CheckerKindSchema.optional(),
   reasonCode: z.string().min(1).optional(),
   eventSummaries: z.array(EventEvidenceSummarySchema).default([]),
@@ -135,8 +136,22 @@ export const VerdictEvidenceSchema = VerdictEvidenceBaseSchema.extend({
 });
 export type VerdictEvidence = z.infer<typeof VerdictEvidenceSchema>;
 
+export const VerdictRunTriggerKindSchema = z.enum(["manual", "rerun", "test", "system"]);
+export type VerdictRunTriggerKind = z.infer<typeof VerdictRunTriggerKindSchema>;
+
+export const VerdictRunRecordSchema = z.object({
+  runId: z.string().min(1),
+  storyId: StoryIdSchema,
+  revisionId: RevisionIdSchema,
+  previousRunId: z.string().min(1).optional(),
+  triggerKind: VerdictRunTriggerKindSchema,
+  createdAt: z.string().min(1)
+});
+export type VerdictRunRecord = z.infer<typeof VerdictRunRecordSchema>;
+
 export const VerdictRecordSchema = z.object({
   verdictId: VerdictIdSchema,
+  runId: z.string().min(1).optional(),
   storyId: StoryIdSchema,
   revisionId: RevisionIdSchema,
   verdictKind: VerdictKindSchema,

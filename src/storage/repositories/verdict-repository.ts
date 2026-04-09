@@ -11,6 +11,7 @@ export class VerdictRepository {
       `
         INSERT INTO verdicts (
           verdict_id,
+          run_id,
           story_id,
           revision_id,
           verdict_kind,
@@ -19,8 +20,9 @@ export class VerdictRepository {
           evidence,
           created_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, CAST($7 AS jsonb), $8)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, CAST($8 AS jsonb), $9)
         ON CONFLICT (verdict_id) DO UPDATE SET
+          run_id = EXCLUDED.run_id,
           story_id = EXCLUDED.story_id,
           revision_id = EXCLUDED.revision_id,
           verdict_kind = EXCLUDED.verdict_kind,
@@ -31,6 +33,7 @@ export class VerdictRepository {
       `,
       [
         verdict.verdictId,
+        verdict.runId ?? null,
         verdict.storyId,
         verdict.revisionId,
         verdict.verdictKind,
@@ -59,7 +62,7 @@ export class VerdictRepository {
       await this.client.query(
         `
           DELETE FROM verdicts
-          WHERE story_id = $1 AND revision_id = $2
+          WHERE story_id = $1 AND revision_id = $2 AND run_id IS NULL
         `,
         [storyId, revisionId]
       );
@@ -74,6 +77,7 @@ export class VerdictRepository {
     const rows = (
       await this.client.query<{
         verdictId: string;
+        runId?: string | null;
         storyId: string;
         revisionId: string;
         verdictKind: "Hard Contradiction" | "Repairable Gap" | "Soft Drift" | "Consistent";
@@ -91,6 +95,7 @@ export class VerdictRepository {
         `
           SELECT
             verdict_id AS "verdictId",
+            run_id AS "runId",
             story_id AS "storyId",
             revision_id AS "revisionId",
             verdict_kind AS "verdictKind",
@@ -106,6 +111,57 @@ export class VerdictRepository {
       )
     ).rows;
 
-    return rows.map((row) => VerdictRecordSchema.parse(row));
+    return rows.map((row) =>
+      VerdictRecordSchema.parse({
+        ...row,
+        runId: row.runId ?? undefined
+      })
+    );
+  }
+
+  async listForRun(runId: string): Promise<VerdictRecord[]> {
+    const rows = (
+      await this.client.query<{
+        verdictId: string;
+        runId?: string | null;
+        storyId: string;
+        revisionId: string;
+        verdictKind: "Hard Contradiction" | "Repairable Gap" | "Soft Drift" | "Consistent";
+        category:
+          | "physical_impossibility"
+          | "temporal_contradiction"
+          | "causal_gap"
+          | "character_state_contradiction"
+          | "rule_conflict"
+          | "provenance_gap";
+        explanation: string;
+        evidence: Record<string, unknown>;
+        createdAt: string;
+      }>(
+        `
+          SELECT
+            verdict_id AS "verdictId",
+            run_id AS "runId",
+            story_id AS "storyId",
+            revision_id AS "revisionId",
+            verdict_kind AS "verdictKind",
+            category,
+            explanation,
+            evidence,
+            created_at AS "createdAt"
+          FROM verdicts
+          WHERE run_id = $1
+          ORDER BY created_at, verdict_id
+        `,
+        [runId]
+      )
+    ).rows;
+
+    return rows.map((row) =>
+      VerdictRecordSchema.parse({
+        ...row,
+        runId: row.runId ?? undefined
+      })
+    );
   }
 }

@@ -7,6 +7,7 @@ import {
   ProvenanceRepository,
   RuleRepository,
   StoryRepository,
+  VerdictRunRepository,
   VerdictRepository,
   canonicalTableNames,
   loadCanonicalMigrationSql,
@@ -215,6 +216,7 @@ describe("canonical persistence", () => {
   it("persists story revisions, rules, verdicts, and provenance without field loss", async () => {
     const storyRepository = new StoryRepository(pool);
     const ruleRepository = new RuleRepository(pool);
+    const verdictRunRepository = new VerdictRunRepository(pool);
     const verdictRepository = new VerdictRepository(pool);
     const provenanceRepository = new ProvenanceRepository(pool);
 
@@ -275,14 +277,24 @@ describe("canonical persistence", () => {
       }
     );
 
+    await verdictRunRepository.saveRun({
+      runId: "run:fixture-1",
+      storyId: "story:fixture",
+      revisionId: "revision:fixture-1",
+      triggerKind: "manual",
+      createdAt: "2026-04-09T06:30:30Z"
+    });
+
     await verdictRepository.saveVerdict({
       verdictId: "verdict:travel-ok",
+      runId: "run:fixture-1",
       storyId: "story:fixture",
       revisionId: "revision:fixture-1",
       verdictKind: "Consistent",
       category: "physical_impossibility",
       explanation: "Travel duration satisfies the minimum constraint.",
       evidence: {
+        findingId: "finding:travel-ok",
         eventIds: ["event:travel"],
         stateBoundaryIds: ["boundary:a-initial"],
         ruleVersionIds: ["ruleversion:reality-default-v1"],
@@ -350,7 +362,11 @@ describe("canonical persistence", () => {
 
     const reloadedGraph = await storyRepository.loadGraph("story:fixture", "revision:fixture-1");
     const reloadedRule = await ruleRepository.loadRuleVersion("ruleversion:reality-default-v1");
-    const reloadedVerdicts = await verdictRepository.listForRevision("story:fixture", "revision:fixture-1");
+    const reloadedRuns = await verdictRunRepository.listRunsForRevision(
+      "story:fixture",
+      "revision:fixture-1"
+    );
+    const reloadedVerdicts = await verdictRepository.listForRun("run:fixture-1");
     const reloadedProvenance = await provenanceRepository.listByOwner("event", "event:betrayal");
 
     expect(reloadedGraph.story.title).toBe("Fixture Story");
@@ -361,6 +377,9 @@ describe("canonical persistence", () => {
     expect(reloadedRule.metadata.sourceText).toContain("Reality physics");
     expect(reloadedRule.metadata.scopeTargetId).toBe("story:fixture");
     expect(reloadedRule.version.normalizedText).toContain("minimum time");
+    expect(reloadedRuns[0]?.runId).toBe("run:fixture-1");
+    expect(reloadedVerdicts[0]?.runId).toBe("run:fixture-1");
+    expect(reloadedVerdicts[0]?.evidence.findingId).toBe("finding:travel-ok");
     expect(reloadedVerdicts[0]?.evidence.ruleVersionIds).toContain("ruleversion:reality-default-v1");
     expect(reloadedVerdicts[0]?.evidence.reasonCode).toBe("travel_duration_ok");
     expect(reloadedVerdicts[0]?.evidence.eventSummaries[0]?.eventId).toBe("event:travel");
