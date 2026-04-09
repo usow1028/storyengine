@@ -1,5 +1,5 @@
 import { VerdictRecordSchema, type VerdictRecord } from "../../domain/index.js";
-import { asJson, type SqlQueryable } from "../db.js";
+import { asJson, withTransaction, type SqlQueryable } from "../db.js";
 
 export class VerdictRepository {
   constructor(private readonly client: SqlQueryable) {}
@@ -40,6 +40,34 @@ export class VerdictRepository {
         verdict.createdAt
       ]
     );
+  }
+
+  async saveMany(inputs: VerdictRecord[]): Promise<void> {
+    for (const input of inputs) {
+      await this.saveVerdict(input);
+    }
+  }
+
+  async replaceForRevision(
+    storyId: string,
+    revisionId: string,
+    inputs: VerdictRecord[]
+  ): Promise<void> {
+    const verdicts = inputs.map((input) => VerdictRecordSchema.parse(input));
+
+    await withTransaction(this.client, async () => {
+      await this.client.query(
+        `
+          DELETE FROM verdicts
+          WHERE story_id = $1 AND revision_id = $2
+        `,
+        [storyId, revisionId]
+      );
+
+      for (const verdict of verdicts) {
+        await this.saveVerdict(verdict);
+      }
+    });
   }
 
   async listForRevision(storyId: string, revisionId: string): Promise<VerdictRecord[]> {
