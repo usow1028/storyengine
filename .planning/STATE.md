@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 03 execute-phase
-last_updated: "2026-04-09T10:49:15.405Z"
+status: planning
+stopped_at: Phase 4 context gathered
+last_updated: "2026-04-09T11:53:46Z"
 last_activity: 2026-04-09
 progress:
   total_phases: 6
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-09)
 
 **Core value:** Writers must be able to see exactly why a story is coherent or incoherent, and what explanation or prior condition would repair it.
-**Current focus:** Phase 03 — Evidence and Repair Reasoning
+**Current focus:** Phase 04 — Corpus Priors and Soft Pattern Layer
 
 ## Current Position
 
-Phase: 03 (Evidence and Repair Reasoning) — AWAITING VERIFICATION
-Plan: 3 of 3
-Status: Phase complete — ready for verification
+Phase: 04 (Corpus Priors and Soft Pattern Layer) — CONTEXT GATHERED
+Plan: 0 of 2
+Status: Phase context ready — planning can begin
 Last activity: 2026-04-09
 
-Progress: [██████████] 100%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
@@ -80,10 +80,10 @@ None yet.
 
 ### Blockers/Concerns
 
-- Corpus selection and weighting strategy remain open research items for Phase 4
+- No implementation blocker is active, but corpus sourcing, weighting, and export shape now need Phase 4 research and planning decisions to turn into executable tasks.
 
 ## Session Continuity
 
-Last session: 2026-04-09T10:48:28.082Z
-Stopped at: Completed 03 execute-phase
-Resume file: .planning/phases/03-evidence-and-repair-reasoning/03-03-SUMMARY.md
+Last session: 2026-04-09T11:53:46Z
+Stopped at: Phase 4 context gathered
+Resume file: .planning/phases/04-corpus-priors-and-soft-pattern-layer/04-CONTEXT.md
