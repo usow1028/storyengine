@@ -9,10 +9,10 @@ Requirements for the initial consistency-engine release. Each maps to a roadmap 
 
 ### Canonical Modeling
 
-- [ ] **MODEL-01**: User can represent characters, locations, objects, and world entities as explicit canonical records instead of prose-only notes
-- [ ] **MODEL-02**: User can represent character state at story boundaries, including knowledge, goals, loyalties, resources, and location
-- [ ] **MODEL-03**: User can represent events with actors, time, place, preconditions, effects, and causal links
-- [ ] **MODEL-04**: User can declare world rules that define default physics and explicit exceptions
+- [x] **MODEL-01**: User can represent characters, locations, objects, and world entities as explicit canonical records instead of prose-only notes
+- [x] **MODEL-02**: User can represent character state at story boundaries, including knowledge, goals, loyalties, resources, and location
+- [x] **MODEL-03**: User can represent events with actors, time, place, preconditions, effects, and causal links
+- [x] **MODEL-04**: User can declare world rules that define default physics and explicit exceptions
 
 ### Rule Engine
 
@@ -80,10 +80,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MODEL-01 | Phase 1 | Pending |
-| MODEL-02 | Phase 1 | Pending |
-| MODEL-03 | Phase 1 | Pending |
-| MODEL-04 | Phase 1 | Pending |
+| MODEL-01 | Phase 1 | Complete |
+| MODEL-02 | Phase 1 | Complete |
+| MODEL-03 | Phase 1 | Complete |
+| MODEL-04 | Phase 1 | Complete |
 | DATA-01 | Phase 1 | Pending |
 | RULE-01 | Phase 2 | Pending |
 | RULE-02 | Phase 2 | Pending |
