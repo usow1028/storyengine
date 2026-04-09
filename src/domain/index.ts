@@ -4,3 +4,4 @@ export * from "./state.js";
 export * from "./events.js";
 export * from "./rules.js";
 export * from "./verdicts.js";
+export * from "./transitions.js";
