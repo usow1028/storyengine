@@ -24,13 +24,13 @@ Requirements for the initial consistency-engine release. Each maps to a roadmap 
 ### Verdicts
 
 - [ ] **VERD-01**: Engine classifies results as `Hard Contradiction`, `Repairable Gap`, `Soft Drift`, or `Consistent`
-- [ ] **VERD-02**: Each verdict cites the exact events, states, and rules used to reach the judgment
-- [ ] **VERD-03**: Verdicts can be rerun against updated story versions so changes in consistency are inspectable
+- [x] **VERD-02**: Each verdict cites the exact events, states, and rules used to reach the judgment
+- [x] **VERD-03**: Verdicts can be rerun against updated story versions so changes in consistency are inspectable
 
 ### Repair Logic
 
-- [ ] **REPR-01**: Engine can propose missing assumptions, rule declarations, or prior events that would repair a failing story path
-- [ ] **REPR-02**: Engine can rank repair candidates separately from hard validity so plausible fixes do not masquerade as current truth
+- [x] **REPR-01**: Engine can propose missing assumptions, rule declarations, or prior events that would repair a failing story path
+- [x] **REPR-02**: Engine can rank repair candidates separately from hard validity so plausible fixes do not masquerade as current truth
 
 ### Pattern Priors
 
@@ -90,10 +90,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RULE-03 | Phase 2 | Pending |
 | RULE-04 | Phase 2 | Pending |
 | VERD-01 | Phase 2 | Pending |
-| VERD-02 | Phase 3 | Pending |
-| VERD-03 | Phase 3 | Pending |
-| REPR-01 | Phase 3 | Pending |
-| REPR-02 | Phase 3 | Pending |
+| VERD-02 | Phase 3 | Complete |
+| VERD-03 | Phase 3 | Complete |
+| REPR-01 | Phase 3 | Complete |
+| REPR-02 | Phase 3 | Complete |
 | SOFT-01 | Phase 4 | Pending |
 | DATA-02 | Phase 4 | Pending |
 | FLOW-01 | Phase 5 | Pending |

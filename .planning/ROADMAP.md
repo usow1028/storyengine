@@ -68,9 +68,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: Implement evidence/provenance trace objects for verdict explanation
-- [ ] 03-02: Build minimal repair generation for missing assumptions and prior events
-- [ ] 03-03: Add rerun and verdict-diff support for revised stories
+- [x] 03-01: Implement evidence/provenance trace objects for verdict explanation
+- [x] 03-02: Build minimal repair generation for missing assumptions and prior events
+- [x] 03-03: Add rerun and verdict-diff support for revised stories
 
 ### Phase 4: Corpus Priors and Soft Pattern Layer
 **Goal**: Add pattern-backed soft reasoning without collapsing it into hard law
