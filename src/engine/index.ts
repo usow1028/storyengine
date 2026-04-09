@@ -5,6 +5,7 @@ export * from "./verdict-aggregator.js";
 export * from "./hard-constraint-engine.js";
 export * from "./evidence-snapshots.js";
 export * from "./explanation-renderer.js";
+export * from "./prior-snapshot-loader.js";
 export * from "./repair-catalog.js";
 export * from "./repair-ranking.js";
 export * from "./repair-generator.js";

@@ -2,8 +2,12 @@ import { z } from "zod";
 
 import type {
   CanonicalEvent,
+  GenreWeight,
   NormalizedExecutableRule,
+  PriorSnapshot,
+  RepairCandidate,
   RulePackMetadata,
+  SoftPriorAssessment,
   VerdictEvidence
 } from "../domain/index.js";
 import {
@@ -69,6 +73,28 @@ export interface DeterministicExplanationInput {
   representativeChecker?: CheckerKind;
   reasonCode?: string;
   evidence: VerdictEvidence;
+}
+
+export interface PriorSnapshotSet {
+  snapshotDir: string;
+  baselineSnapshots: PriorSnapshot[];
+  genreSnapshots: PriorSnapshot[];
+}
+
+export interface SoftPriorTransitionInput {
+  currentEventType: string;
+  nextEventType: string;
+  stateAxes: string[];
+  stateTransitionTokens: string[];
+  worldRuleExceptionTokens: string[];
+  preconditionTokens: string[];
+  genreWeights: GenreWeight[];
+  worldProfile: string;
+}
+
+export interface SoftPriorEvaluationResult {
+  assessment: SoftPriorAssessment;
+  rerankedRepairs: RepairCandidate[];
 }
 
 export const HardConstraintEvaluationSchema = z.object({

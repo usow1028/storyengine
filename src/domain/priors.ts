@@ -99,6 +99,54 @@ export const NormalizedCorpusWorkSchema = CorpusWorkSchema.extend({
 });
 export type NormalizedCorpusWork = z.infer<typeof NormalizedCorpusWorkSchema>;
 
+export const SoftDriftTypeSchema = z.enum([
+  "transition_drift",
+  "motivation_drift",
+  "rule_exception_rarity"
+]);
+export type SoftDriftType = z.infer<typeof SoftDriftTypeSchema>;
+
+export const SoftDriftScoreMapSchema = z.object({
+  transition_drift: z.number().min(0).max(1),
+  motivation_drift: z.number().min(0).max(1),
+  rule_exception_rarity: z.number().min(0).max(1)
+});
+export type SoftDriftScoreMap = z.infer<typeof SoftDriftScoreMapSchema>;
+
+export const PriorContributionSchema = z.object({
+  layer: PriorLayerSchema,
+  genreKey: z.string().min(1),
+  worldProfile: WorldProfileSchema,
+  driftType: SoftDriftTypeSchema,
+  sampleCount: z.number().int().nonnegative(),
+  confidence: z.number().min(0).max(1),
+  appliedWeight: z.number().min(0).max(1),
+  score: z.number().min(0).max(1),
+  threshold: z.number().min(0).max(1),
+  patternKey: z.string().min(1).optional(),
+  representativePatternSummary: z.string().min(1)
+});
+export type PriorContribution = z.infer<typeof PriorContributionSchema>;
+
+export const SoftPriorAssessmentSchema = z.object({
+  driftScores: SoftDriftScoreMapSchema,
+  thresholds: SoftDriftScoreMapSchema,
+  dominantPriorLayer: PriorLayerSchema.optional(),
+  triggeredDrifts: z.array(SoftDriftTypeSchema).default([]),
+  representativePatternSummary: z.string().min(1),
+  contributions: z.array(PriorContributionSchema).default([])
+});
+export type SoftPriorAssessment = z.infer<typeof SoftPriorAssessmentSchema>;
+
+export const RepairPlausibilityAdjustmentSchema = z.object({
+  repairId: z.string().min(1),
+  adjustment: z.number().min(-1).max(1),
+  confidence: z.number().min(0).max(1),
+  dominantPriorLayer: PriorLayerSchema.optional(),
+  representativePatternSummary: z.string().min(1)
+});
+export type RepairPlausibilityAdjustment = z.infer<typeof RepairPlausibilityAdjustmentSchema>;
+
 function slugifyKeyPart(value: string): string {
   return value
     .trim()
