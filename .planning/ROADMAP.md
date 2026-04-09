@@ -99,8 +99,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 05-01: Build natural-language extraction and schema-validation pipeline
-- [ ] 05-02: Implement correction loop and check-mode controls
+- [x] 05-01: Build natural-language extraction and schema-validation pipeline
+- [x] 05-02: Implement correction loop and check-mode controls
 
 ### Phase 6: Interactive Inspection Surface
 **Goal**: Make violations, repairs, and state transitions explorable without reading raw storage records
