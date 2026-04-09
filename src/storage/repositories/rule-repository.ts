@@ -203,4 +203,111 @@ export class RuleRepository {
       })
     };
   }
+
+  async listRuleVersionsForRevision(
+    storyId: string,
+    revisionId: string
+  ): Promise<
+    Array<{
+      metadata: RulePackMetadata;
+      version: NormalizedExecutableRule;
+    }>
+  > {
+    const rows = (
+      await this.client.query<{
+        rulePackId: string;
+        storyId: string;
+        revisionId: string;
+        name: string;
+        description: string;
+        worldAffiliation: string;
+        scope: string;
+        scopeTargetId?: string | null;
+        priority: number;
+        active: boolean;
+        sourceKind: "baseline" | "user_authored" | "imported" | "normalized";
+        sourceText: string;
+        defaultPhysics: boolean;
+        metadataProvenanceId?: string | null;
+        ruleVersionId: string;
+        executableKind: "asp" | "dsl" | "sql" | "predicate" | "unknown";
+        executableRef: string;
+        normalizedText: string;
+        conditions: string[];
+        effects: string[];
+        validationStatus: "draft" | "validated" | "rejected";
+        versionProvenanceId?: string | null;
+      }>(
+        `
+          SELECT
+            p.rule_pack_id AS "rulePackId",
+            p.story_id AS "storyId",
+            p.revision_id AS "revisionId",
+            p.name,
+            p.description,
+            p.world_affiliation AS "worldAffiliation",
+            p.scope,
+            p.scope_target_id AS "scopeTargetId",
+            p.priority,
+            p.active,
+            p.source_kind AS "sourceKind",
+            p.source_text AS "sourceText",
+            p.default_physics AS "defaultPhysics",
+            p.provenance_id AS "metadataProvenanceId",
+            v.rule_version_id AS "ruleVersionId",
+            v.executable_kind AS "executableKind",
+            v.executable_ref AS "executableRef",
+            v.normalized_text AS "normalizedText",
+            v.conditions,
+            v.effects,
+            v.validation_status AS "validationStatus",
+            v.provenance_id AS "versionProvenanceId"
+          FROM rule_versions v
+          JOIN rule_packs p ON p.rule_pack_id = v.rule_pack_id
+          WHERE p.story_id = $1 AND p.revision_id = $2
+          ORDER BY
+            CASE p.scope
+              WHEN 'event' THEN 5
+              WHEN 'character' THEN 4
+              WHEN 'location' THEN 3
+              WHEN 'story' THEN 2
+              ELSE 1
+            END DESC,
+            p.priority DESC,
+            v.rule_version_id
+        `,
+        [storyId, revisionId]
+      )
+    ).rows;
+
+    return rows.map((row) => ({
+      metadata: RulePackMetadataSchema.parse({
+        rulePackId: row.rulePackId,
+        storyId: row.storyId,
+        revisionId: row.revisionId,
+        name: row.name,
+        description: row.description,
+        worldAffiliation: row.worldAffiliation,
+        scope: row.scope,
+        scopeTargetId: row.scopeTargetId ?? undefined,
+        priority: row.priority,
+        active: row.active,
+        sourceKind: row.sourceKind,
+        sourceText: row.sourceText,
+        defaultPhysics: row.defaultPhysics,
+        provenanceId: row.metadataProvenanceId ?? undefined
+      }),
+      version: NormalizedExecutableRuleSchema.parse({
+        ruleVersionId: row.ruleVersionId,
+        rulePackId: row.rulePackId,
+        executableKind: row.executableKind,
+        executableRef: row.executableRef,
+        normalizedText: row.normalizedText,
+        conditions: row.conditions ?? [],
+        effects: row.effects ?? [],
+        validationStatus: row.validationStatus,
+        provenanceId: row.versionProvenanceId ?? undefined
+      })
+    }));
+  }
 }
