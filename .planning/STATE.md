@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: verifying
-stopped_at: Completed 01-02-PLAN.md
-last_updated: "2026-04-09T06:40:26.414Z"
+stopped_at: Completed 01-03-PLAN.md
+last_updated: "2026-04-09T06:41:11.485Z"
 last_activity: 2026-04-09
 progress:
   total_phases: 6
@@ -53,6 +53,7 @@ Progress: ░░░░░░░░░░ 0%
 
 | Phase 01 P01 | 6 min | 3 tasks | 12 files |
 | Phase 01 P02 | 9 min | 3 tasks | 10 files |
+| Phase 01 P03 | 5 min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -66,6 +67,7 @@ Progress: ░░░░░░░░░░ 0%
 - [Phase 01]: Use PostgreSQL DDL plus repository modules as the operational source of truth instead of graph-first persistence. — Preserves provenance and relational control for later deterministic reasoning.
 - [Phase 01]: Round-trip storage behavior with pg-mem so persistence tests run locally without an external database. — Keeps Phase 1 verification fast and reproducible.
 - [Phase 01]: Boundary queries must specify before-event or after-event position explicitly. — Hard constraint rules need deterministic boundary semantics.
+- [Phase 01]: Snapshot reconstruction may use only stored canonical boundaries and event deltas, not prose heuristics. — Keeps Phase 1 answers reproducible from the canonical store alone.
 
 ### Pending Todos
 
@@ -73,11 +75,10 @@ None yet.
 
 ### Blockers/Concerns
 
-- Git commits are blocked until this repository has a configured git author identity
 - Corpus selection and weighting strategy remain open research items for Phase 4
 
 ## Session Continuity
 
-Last session: 2026-04-09T06:36:56.262Z
-Stopped at: Completed 01-02-PLAN.md
+Last session: 2026-04-09T06:40:26.550Z
+Stopped at: Completed 01-03-PLAN.md
 Resume file: None
