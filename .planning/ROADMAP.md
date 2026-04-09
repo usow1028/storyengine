@@ -35,7 +35,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 - [x] 01-01: Define canonical schemas, stable IDs, and violation taxonomies
-- [ ] 01-02: Implement story, rule, verdict, and provenance storage model
+- [x] 01-02: Implement story, rule, verdict, and provenance storage model
 - [ ] 01-03: Build state snapshot/delta reconstruction baseline
 
 ### Phase 2: Hard Constraint Engine

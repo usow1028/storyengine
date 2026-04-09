@@ -38,7 +38,7 @@ Requirements for the initial consistency-engine release. Each maps to a roadmap 
 
 ### Data & Workflow
 
-- [ ] **DATA-01**: System stores canonical story objects, rule packs, verdicts, and provenance in a queryable database
+- [x] **DATA-01**: System stores canonical story objects, rule packs, verdicts, and provenance in a queryable database
 - [ ] **DATA-02**: System supports offline corpus extraction and analysis to build or revise soft priors
 - [ ] **FLOW-01**: User can submit natural-language synopsis or scene text and receive a normalized structured interpretation for review
 - [ ] **FLOW-02**: User can inspect consistency results in a structured analysis view before advanced visualization is added
@@ -84,7 +84,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MODEL-02 | Phase 1 | Complete |
 | MODEL-03 | Phase 1 | Complete |
 | MODEL-04 | Phase 1 | Complete |
-| DATA-01 | Phase 1 | Pending |
+| DATA-01 | Phase 1 | Complete |
 | RULE-01 | Phase 2 | Pending |
 | RULE-02 | Phase 2 | Pending |
 | RULE-03 | Phase 2 | Pending |
