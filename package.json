@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "build:priors": "node --loader tsx scripts/build-priors.ts",
     "test": "vitest run",
     "test:canonical": "vitest run tests/canonical",
     "test:engine": "vitest run tests/engine/checker-families.test.ts tests/engine/rule-activation.test.ts tests/engine/hard-constraint-engine.test.ts tests/engine/regression-physical-temporal.test.ts tests/engine/regression-causality-character.test.ts tests/engine/regression-overrides.test.ts",
@@ -19,6 +20,7 @@
   "devDependencies": {
     "@types/node": "^24.6.1",
     "@types/pg": "^8.15.5",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }
