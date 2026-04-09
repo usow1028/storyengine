@@ -1,6 +1,7 @@
 export * from "./snapshot-rebuilder.js";
 export * from "./story-boundary-query.js";
 export * from "./explained-verdicts.js";
+export * from "./soft-prior-evaluator.js";
 export * from "./verdict-runner.js";
 export * from "./verdict-diff.js";
 export {

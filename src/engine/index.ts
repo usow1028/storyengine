@@ -9,6 +9,8 @@ export * from "./prior-snapshot-loader.js";
 export * from "./repair-catalog.js";
 export * from "./repair-ranking.js";
 export * from "./repair-generator.js";
+export * from "./soft-prior-scoring.js";
+export * from "./repair-plausibility.js";
 export * from "./checkers/time-checker.js";
 export * from "./checkers/space-checker.js";
 export * from "./checkers/physics-checker.js";
