@@ -7,6 +7,7 @@
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:canonical": "vitest run tests/canonical",
+    "test:engine": "vitest run tests/engine/checker-families.test.ts tests/engine/rule-activation.test.ts tests/engine/hard-constraint-engine.test.ts tests/engine/regression-physical-temporal.test.ts tests/engine/regression-causality-character.test.ts tests/engine/regression-overrides.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
