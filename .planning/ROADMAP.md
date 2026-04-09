@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Evidence and Repair Reasoning** - Explain verdicts and compute minimal repairs for broken story paths
 - [x] **Phase 4: Corpus Priors and Soft Pattern Layer** - Add pattern-backed soft drift signals and repair ranking without weakening hard logic
 - [x] **Phase 5: Natural-Language Ingestion and Review API** - Let writers submit prose-like input and review structured interpretations before checking
-- [ ] **Phase 6: Verification and Traceability Closure** - Backfill phase verification artifacts and reconcile requirement traceability for completed milestone work
+- [x] **Phase 6: Verification and Traceability Closure** - Backfill phase verification artifacts and reconcile requirement traceability for completed milestone work
 - [ ] **Phase 7: Soft-Prior Runtime Integration** - Wire advisory prior scoring into the checked runtime path without collapsing hard and soft judgments
 - [ ] **Phase 8: Interactive Inspection Surface** - Provide timeline/graph and structured views for exploring verdicts and repairs
 
@@ -119,7 +119,7 @@ Plans:
 Plans:
 - [x] 06-01: Backfill verification artifacts for phases 01-03
 - [x] 06-02: Backfill verification artifacts for phases 04-05 and reconcile traceability evidence
-- [ ] 06-03: Re-run milestone audit and close verification-driven blockers
+- [x] 06-03: Re-run milestone audit and close verification-driven blockers
 
 ### Phase 7: Soft-Prior Runtime Integration
 **Goal**: Surface phase 04 advisory priors in checked outputs while preserving deterministic hard verdict truth
@@ -165,6 +165,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 3. Evidence and Repair Reasoning | 3/3 | Complete | 2026-04-09 |
 | 4. Corpus Priors and Soft Pattern Layer | 2/2 | Complete | 2026-04-10 |
 | 5. Natural-Language Ingestion and Review API | 2/2 | Complete | 2026-04-10 |
-| 6. Verification and Traceability Closure | 2/3 | In Progress | - |
+| 6. Verification and Traceability Closure | 3/3 | Complete | 2026-04-10 |
 | 7. Soft-Prior Runtime Integration | 0/3 | Not started | - |
 | 8. Interactive Inspection Surface | 0/2 | Not started | - |
