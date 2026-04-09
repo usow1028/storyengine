@@ -39,10 +39,10 @@ Requirements for the initial consistency-engine release. Each maps to a roadmap 
 ### Data & Workflow
 
 - [x] **DATA-01**: System stores canonical story objects, rule packs, verdicts, and provenance in a queryable database
-- [ ] **DATA-02**: System supports offline corpus extraction and analysis to build or revise soft priors
-- [ ] **FLOW-01**: User can submit natural-language synopsis or scene text and receive a normalized structured interpretation for review
+- [x] **DATA-02**: System supports offline corpus extraction and analysis to build or revise soft priors
+- [x] **FLOW-01**: User can submit natural-language synopsis or scene text and receive a normalized structured interpretation for review
 - [ ] **FLOW-02**: User can inspect consistency results in a structured analysis view before advanced visualization is added
-- [ ] **FLOW-03**: User can run consistency checks on demand and is not forced into realtime verdicting while drafting
+- [x] **FLOW-03**: User can run consistency checks on demand and is not forced into realtime verdicting while drafting
 
 ## v2 Requirements
 
@@ -80,24 +80,24 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MODEL-01 | Phase 6 | Complete |
-| MODEL-02 | Phase 6 | Complete |
-| MODEL-03 | Phase 6 | Complete |
-| MODEL-04 | Phase 6 | Complete |
-| DATA-01 | Phase 6 | Complete |
-| RULE-01 | Phase 6 | Complete |
-| RULE-02 | Phase 6 | Complete |
-| RULE-03 | Phase 6 | Complete |
-| RULE-04 | Phase 6 | Complete |
-| VERD-01 | Phase 6 | Complete |
-| VERD-02 | Phase 6 | Complete |
-| VERD-03 | Phase 6 | Complete |
-| REPR-01 | Phase 6 | Complete |
-| REPR-02 | Phase 6 | Complete |
+| MODEL-01 | Phase 6 | Verified |
+| MODEL-02 | Phase 6 | Verified |
+| MODEL-03 | Phase 6 | Verified |
+| MODEL-04 | Phase 6 | Verified |
+| DATA-01 | Phase 6 | Verified |
+| RULE-01 | Phase 6 | Verified |
+| RULE-02 | Phase 6 | Verified |
+| RULE-03 | Phase 6 | Verified |
+| RULE-04 | Phase 6 | Verified |
+| VERD-01 | Phase 6 | Verified |
+| VERD-02 | Phase 6 | Verified |
+| VERD-03 | Phase 6 | Verified |
+| REPR-01 | Phase 6 | Verified |
+| REPR-02 | Phase 6 | Verified |
 | SOFT-01 | Phase 7 | Pending |
-| DATA-02 | Phase 6 | Pending |
-| FLOW-01 | Phase 6 | Pending |
-| FLOW-03 | Phase 6 | Pending |
+| DATA-02 | Phase 6 | Verified |
+| FLOW-01 | Phase 6 | Verified |
+| FLOW-03 | Phase 6 | Verified |
 | FLOW-02 | Phase 8 | Pending |
 
 **Coverage:**
@@ -107,4 +107,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-04-09*
-*Last updated: 2026-04-10 after milestone gap planning*
+*Last updated: 2026-04-10 after Phase 6 traceability reconciliation*
