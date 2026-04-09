@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "build:priors": "node --loader tsx scripts/build-priors.ts",
+    "build:priors": "node --import tsx scripts/build-priors.ts",
     "test": "vitest run",
     "test:canonical": "vitest run tests/canonical",
     "test:engine": "vitest run tests/engine/checker-families.test.ts tests/engine/rule-activation.test.ts tests/engine/hard-constraint-engine.test.ts tests/engine/regression-physical-temporal.test.ts tests/engine/regression-causality-character.test.ts tests/engine/regression-overrides.test.ts",
+    "test:priors": "vitest run tests/corpus/corpus-normalization.test.ts tests/corpus/prior-build.test.ts tests/engine/soft-prior-scoring.test.ts tests/engine/repair-plausibility.test.ts",
     "test:reasoning": "vitest run tests/engine/evidence-traces.test.ts tests/engine/repair-generator.test.ts tests/engine/verdict-runner.test.ts tests/engine/verdict-diff.test.ts",
     "typecheck": "tsc --noEmit"
   },

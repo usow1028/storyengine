@@ -114,6 +114,7 @@ function scoreContribution(
   driftType: SoftDriftType
 ): PriorContribution {
   const confidence = confidenceForSampleCount(snapshot.sampleCount);
+  const specificityWeight = snapshot.layer === "genre" ? 1 : 0.85;
   const threshold = dynamicThreshold(confidence);
   const positiveMatch = transitionMatchScore(snapshot, transition);
   const driftMatch = driftMatchScore(snapshot, transition, driftType);
@@ -131,7 +132,7 @@ function scoreContribution(
     driftType === "rule_exception_rarity"
       ? rarityPenalty * 0.7 + driftStrength * 0.3
       : driftStrength * 0.6 + rarityPenalty * 0.4;
-  const score = clamp(baseScore * confidence);
+  const score = clamp(baseScore * confidence * specificityWeight);
 
   return {
     layer: snapshot.layer,
@@ -140,7 +141,7 @@ function scoreContribution(
     driftType,
     sampleCount: snapshot.sampleCount,
     confidence,
-    appliedWeight: confidence,
+    appliedWeight: clamp(confidence * specificityWeight),
     score,
     threshold,
     patternKey: driftMatch?.pattern.patternKey ?? positiveMatch?.pattern.patternKey,
@@ -173,11 +174,17 @@ export function scoreSoftDrift(input: {
     DRIFT_TYPES.map((driftType) => scoreContribution(snapshot, input.transition, driftType))
   );
   const strongestByDrift = new Map<SoftDriftType, PriorContribution>();
+  const highestThresholdByDrift = new Map<SoftDriftType, number>();
 
   for (const contribution of contributions) {
     const existing = strongestByDrift.get(contribution.driftType);
     if (!existing || contribution.score > existing.score) {
       strongestByDrift.set(contribution.driftType, contribution);
+    }
+
+    const existingThreshold = highestThresholdByDrift.get(contribution.driftType) ?? 0;
+    if (contribution.threshold > existingThreshold) {
+      highestThresholdByDrift.set(contribution.driftType, contribution.threshold);
     }
   }
 
@@ -187,7 +194,8 @@ export function scoreSoftDrift(input: {
   for (const driftType of DRIFT_TYPES) {
     const strongest = strongestByDrift.get(driftType);
     driftScores[driftType] = strongest?.score ?? 0;
-    thresholds[driftType] = strongest?.threshold ?? dynamicThreshold(0.2);
+    thresholds[driftType] =
+      highestThresholdByDrift.get(driftType) ?? strongest?.threshold ?? dynamicThreshold(0.2);
   }
 
   const layerTotals = contributions.reduce<Record<string, number>>((accumulator, contribution) => {
