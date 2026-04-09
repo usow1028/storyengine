@@ -12,12 +12,14 @@ StoryGraph starts by formalizing narrative into explicit characters, states, eve
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Canonical Narrative Schema** - Define the engine’s core data model for characters, states, events, world rules, and provenance
-- [ ] **Phase 2: Hard Constraint Engine** - Encode and execute deterministic checks for physical, temporal, causal, and character-state consistency
-- [ ] **Phase 3: Evidence and Repair Reasoning** - Explain verdicts and compute minimal repairs for broken story paths
-- [ ] **Phase 4: Corpus Priors and Soft Pattern Layer** - Add pattern-backed soft drift signals and repair ranking without weakening hard logic
-- [ ] **Phase 5: Natural-Language Ingestion and Review API** - Let writers submit prose-like input and review structured interpretations before checking
-- [ ] **Phase 6: Interactive Inspection Surface** - Provide timeline/graph and structured views for exploring verdicts and repairs
+- [x] **Phase 1: Canonical Narrative Schema** - Define the engine’s core data model for characters, states, events, world rules, and provenance
+- [x] **Phase 2: Hard Constraint Engine** - Encode and execute deterministic checks for physical, temporal, causal, and character-state consistency
+- [x] **Phase 3: Evidence and Repair Reasoning** - Explain verdicts and compute minimal repairs for broken story paths
+- [x] **Phase 4: Corpus Priors and Soft Pattern Layer** - Add pattern-backed soft drift signals and repair ranking without weakening hard logic
+- [x] **Phase 5: Natural-Language Ingestion and Review API** - Let writers submit prose-like input and review structured interpretations before checking
+- [ ] **Phase 6: Verification and Traceability Closure** - Backfill phase verification artifacts and reconcile requirement traceability for completed milestone work
+- [ ] **Phase 7: Soft-Prior Runtime Integration** - Wire advisory prior scoring into the checked runtime path without collapsing hard and soft judgments
+- [ ] **Phase 8: Interactive Inspection Surface** - Provide timeline/graph and structured views for exploring verdicts and repairs
 
 ## Phase Details
 
@@ -51,9 +53,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: Encode hard-rule families for time, space, physics, causality, and character state
-- [ ] 02-02: Integrate the primary symbolic solver and executable rule pack
-- [ ] 02-03: Build deterministic verdict classification fixtures and regression tests
+- [x] 02-01: Encode hard-rule families for time, space, physics, causality, and character state
+- [x] 02-02: Integrate the primary symbolic solver and executable rule pack
+- [x] 02-03: Build deterministic verdict classification fixtures and regression tests
 
 ### Phase 3: Evidence and Repair Reasoning
 **Goal**: Make verdicts explainable and revision-oriented instead of opaque failure labels
@@ -84,8 +86,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 04-01: Build corpus ingestion pipeline and derived event/state datasets
-- [ ] 04-02: Implement soft-prior scoring and repair ranking layer
+- [x] 04-01: Build corpus ingestion pipeline and derived event/state datasets
+- [x] 04-02: Implement soft-prior scoring and repair ranking layer
 
 ### Phase 5: Natural-Language Ingestion and Review API
 **Goal**: Let writers work in natural language while preserving a structured reasoning core
@@ -102,9 +104,43 @@ Plans:
 - [x] 05-01: Build natural-language extraction and schema-validation pipeline
 - [x] 05-02: Implement correction loop and check-mode controls
 
-### Phase 6: Interactive Inspection Surface
-**Goal**: Make violations, repairs, and state transitions explorable without reading raw storage records
+### Phase 6: Verification and Traceability Closure
+**Goal**: Close milestone audit blockers by backfilling per-phase verification artifacts and aligning requirement traceability with implemented evidence
 **Depends on**: Phase 5
+**Requirements**: [MODEL-01, MODEL-02, MODEL-03, MODEL-04, DATA-01, RULE-01, RULE-02, RULE-03, RULE-04, VERD-01, VERD-02, VERD-03, REPR-01, REPR-02, DATA-02, FLOW-01, FLOW-03]
+**Gap Closure**: Closes milestone audit requirement orphaning and missing phase verification artifacts
+**UI hint**: no
+**Success Criteria** (what must be TRUE):
+  1. Phases 01-05 each have `VERIFICATION.md` artifacts with explicit requirement-to-evidence mapping
+  2. `REQUIREMENTS.md` traceability matches the phase verification results for all implemented milestone requirements
+  3. Milestone audit can classify phases 01-05 from verification artifacts instead of summary-only evidence
+**Plans**: 3 plans
+
+Plans:
+- [ ] 06-01: Backfill verification artifacts for phases 01-03
+- [ ] 06-02: Backfill verification artifacts for phases 04-05 and reconcile traceability evidence
+- [ ] 06-03: Re-run milestone audit and close verification-driven blockers
+
+### Phase 7: Soft-Prior Runtime Integration
+**Goal**: Surface phase 04 advisory priors in checked outputs while preserving deterministic hard verdict truth
+**Depends on**: Phases 4 and 5
+**Requirements**: [SOFT-01]
+**Gap Closure**: Closes the missing phase 04 -> phase 05 runtime integration and broken soft-drift-informed check flow
+**UI hint**: no
+**Success Criteria** (what must be TRUE):
+  1. On-demand checking can compute and return soft-prior assessments alongside deterministic hard verdict output
+  2. Soft prior evidence remains explainable and advisory, including dominant layer, representative pattern summary, and repair plausibility adjustments
+  3. End-to-end tests prove the ingestion review/check flow exposes soft prior results without mutating hard verdict classification
+**Plans**: 3 plans
+
+Plans:
+- [ ] 07-01: Integrate prior snapshot loading and advisory evaluation into checked runtime services
+- [ ] 07-02: Extend checked-output contracts and APIs with explainable soft-prior results
+- [ ] 07-03: Add cross-phase E2E regressions for soft-prior-informed check flows
+
+### Phase 8: Interactive Inspection Surface
+**Goal**: Make violations, repairs, and state transitions explorable without reading raw storage records
+**Depends on**: Phase 7
 **Requirements**: [FLOW-02]
 **UI hint**: yes
 **Success Criteria** (what must be TRUE):
@@ -114,19 +150,21 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 06-01: Build verdict explorer and structured review views
-- [ ] 06-02: Add linked timeline/graph inspection for narrative state and violations
+- [ ] 08-01: Build verdict explorer and structured review views
+- [ ] 08-02: Add linked timeline/graph inspection for narrative state and violations
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Canonical Narrative Schema | 0/3 | Not started | - |
-| 2. Hard Constraint Engine | 0/3 | Not started | - |
-| 3. Evidence and Repair Reasoning | 0/3 | Not started | - |
-| 4. Corpus Priors and Soft Pattern Layer | 0/2 | Not started | - |
-| 5. Natural-Language Ingestion and Review API | 0/2 | Not started | - |
-| 6. Interactive Inspection Surface | 0/2 | Not started | - |
+| 1. Canonical Narrative Schema | 3/3 | Complete | 2026-04-09 |
+| 2. Hard Constraint Engine | 3/3 | Complete | 2026-04-09 |
+| 3. Evidence and Repair Reasoning | 3/3 | Complete | 2026-04-09 |
+| 4. Corpus Priors and Soft Pattern Layer | 2/2 | Complete | 2026-04-10 |
+| 5. Natural-Language Ingestion and Review API | 2/2 | Complete | 2026-04-10 |
+| 6. Verification and Traceability Closure | 0/3 | Not started | - |
+| 7. Soft-Prior Runtime Integration | 0/3 | Not started | - |
+| 8. Interactive Inspection Surface | 0/2 | Not started | - |

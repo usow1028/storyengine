@@ -9,10 +9,10 @@ Requirements for the initial consistency-engine release. Each maps to a roadmap 
 
 ### Canonical Modeling
 
-- [x] **MODEL-01**: User can represent characters, locations, objects, and world entities as explicit canonical records instead of prose-only notes
-- [x] **MODEL-02**: User can represent character state at story boundaries, including knowledge, goals, loyalties, resources, and location
-- [x] **MODEL-03**: User can represent events with actors, time, place, preconditions, effects, and causal links
-- [x] **MODEL-04**: User can declare world rules that define default physics and explicit exceptions
+- [ ] **MODEL-01**: User can represent characters, locations, objects, and world entities as explicit canonical records instead of prose-only notes
+- [ ] **MODEL-02**: User can represent character state at story boundaries, including knowledge, goals, loyalties, resources, and location
+- [ ] **MODEL-03**: User can represent events with actors, time, place, preconditions, effects, and causal links
+- [ ] **MODEL-04**: User can declare world rules that define default physics and explicit exceptions
 
 ### Rule Engine
 
@@ -24,13 +24,13 @@ Requirements for the initial consistency-engine release. Each maps to a roadmap 
 ### Verdicts
 
 - [ ] **VERD-01**: Engine classifies results as `Hard Contradiction`, `Repairable Gap`, `Soft Drift`, or `Consistent`
-- [x] **VERD-02**: Each verdict cites the exact events, states, and rules used to reach the judgment
-- [x] **VERD-03**: Verdicts can be rerun against updated story versions so changes in consistency are inspectable
+- [ ] **VERD-02**: Each verdict cites the exact events, states, and rules used to reach the judgment
+- [ ] **VERD-03**: Verdicts can be rerun against updated story versions so changes in consistency are inspectable
 
 ### Repair Logic
 
-- [x] **REPR-01**: Engine can propose missing assumptions, rule declarations, or prior events that would repair a failing story path
-- [x] **REPR-02**: Engine can rank repair candidates separately from hard validity so plausible fixes do not masquerade as current truth
+- [ ] **REPR-01**: Engine can propose missing assumptions, rule declarations, or prior events that would repair a failing story path
+- [ ] **REPR-02**: Engine can rank repair candidates separately from hard validity so plausible fixes do not masquerade as current truth
 
 ### Pattern Priors
 
@@ -38,7 +38,7 @@ Requirements for the initial consistency-engine release. Each maps to a roadmap 
 
 ### Data & Workflow
 
-- [x] **DATA-01**: System stores canonical story objects, rule packs, verdicts, and provenance in a queryable database
+- [ ] **DATA-01**: System stores canonical story objects, rule packs, verdicts, and provenance in a queryable database
 - [ ] **DATA-02**: System supports offline corpus extraction and analysis to build or revise soft priors
 - [ ] **FLOW-01**: User can submit natural-language synopsis or scene text and receive a normalized structured interpretation for review
 - [ ] **FLOW-02**: User can inspect consistency results in a structured analysis view before advanced visualization is added
@@ -80,25 +80,25 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MODEL-01 | Phase 1 | Complete |
-| MODEL-02 | Phase 1 | Complete |
-| MODEL-03 | Phase 1 | Complete |
-| MODEL-04 | Phase 1 | Complete |
-| DATA-01 | Phase 1 | Complete |
-| RULE-01 | Phase 2 | Pending |
-| RULE-02 | Phase 2 | Pending |
-| RULE-03 | Phase 2 | Pending |
-| RULE-04 | Phase 2 | Pending |
-| VERD-01 | Phase 2 | Pending |
-| VERD-02 | Phase 3 | Complete |
-| VERD-03 | Phase 3 | Complete |
-| REPR-01 | Phase 3 | Complete |
-| REPR-02 | Phase 3 | Complete |
-| SOFT-01 | Phase 4 | Pending |
-| DATA-02 | Phase 4 | Pending |
-| FLOW-01 | Phase 5 | Pending |
-| FLOW-03 | Phase 5 | Pending |
-| FLOW-02 | Phase 6 | Pending |
+| MODEL-01 | Phase 6 | Pending |
+| MODEL-02 | Phase 6 | Pending |
+| MODEL-03 | Phase 6 | Pending |
+| MODEL-04 | Phase 6 | Pending |
+| DATA-01 | Phase 6 | Pending |
+| RULE-01 | Phase 6 | Pending |
+| RULE-02 | Phase 6 | Pending |
+| RULE-03 | Phase 6 | Pending |
+| RULE-04 | Phase 6 | Pending |
+| VERD-01 | Phase 6 | Pending |
+| VERD-02 | Phase 6 | Pending |
+| VERD-03 | Phase 6 | Pending |
+| REPR-01 | Phase 6 | Pending |
+| REPR-02 | Phase 6 | Pending |
+| SOFT-01 | Phase 7 | Pending |
+| DATA-02 | Phase 6 | Pending |
+| FLOW-01 | Phase 6 | Pending |
+| FLOW-03 | Phase 6 | Pending |
+| FLOW-02 | Phase 8 | Pending |
 
 **Coverage:**
 - v1 requirements: 19 total
@@ -107,4 +107,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-04-09*
-*Last updated: 2026-04-09 after initial definition*
+*Last updated: 2026-04-10 after milestone gap planning*
