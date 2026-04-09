@@ -10,10 +10,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "pg": "^8.16.3",
+    "pg-mem": "^3.0.5",
     "zod": "^4.1.12"
   },
   "devDependencies": {
     "@types/node": "^24.6.1",
+    "@types/pg": "^8.15.5",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }

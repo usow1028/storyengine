@@ -1,23 +1,21 @@
 import { z } from "zod";
 
-type Brand<Kind extends string> = string & { readonly __brand: Kind };
-
 const nonEmptyId = z.string().trim().min(1);
 
 function makeIdSchema<Kind extends string>(kind: Kind) {
-  return nonEmptyId.transform((value) => value as Brand<Kind>).describe(kind);
+  return nonEmptyId.describe(kind);
 }
 
-export type StoryId = Brand<"StoryId">;
-export type RevisionId = Brand<"RevisionId">;
-export type EntityId = Brand<"EntityId">;
-export type EventId = Brand<"EventId">;
-export type RulePackId = Brand<"RulePackId">;
-export type RuleVersionId = Brand<"RuleVersionId">;
-export type VerdictId = Brand<"VerdictId">;
-export type ProvenanceId = Brand<"ProvenanceId">;
-export type StateBoundaryId = Brand<"StateBoundaryId">;
-export type CausalLinkId = Brand<"CausalLinkId">;
+export type StoryId = string;
+export type RevisionId = string;
+export type EntityId = string;
+export type EventId = string;
+export type RulePackId = string;
+export type RuleVersionId = string;
+export type VerdictId = string;
+export type ProvenanceId = string;
+export type StateBoundaryId = string;
+export type CausalLinkId = string;
 
 export const StoryIdSchema = makeIdSchema("StoryId");
 export const RevisionIdSchema = makeIdSchema("RevisionId");
