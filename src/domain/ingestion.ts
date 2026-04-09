@@ -1,0 +1,138 @@
+import { z } from "zod";
+
+import { CanonicalEventSchema, CausalLinkSchema } from "./events.js";
+import { RevisionIdSchema, StoryIdSchema } from "./ids.js";
+import { CanonicalEntitySchema } from "./entities.js";
+import { RulePackMetadataSchema, NormalizedExecutableRuleSchema } from "./rules.js";
+import { CharacterStateBoundarySchema } from "./state.js";
+
+const IngestionIdSchema = z.string().trim().min(1);
+const VerdictRunIdSchema = z.string().trim().min(1).describe("VerdictRunId");
+const JsonRecordSchema = z.record(z.string(), z.unknown()).default({});
+
+export const IngestionSessionIdSchema = IngestionIdSchema.describe("IngestionSessionId");
+export type IngestionSessionId = z.infer<typeof IngestionSessionIdSchema>;
+
+export const IngestionSegmentIdSchema = IngestionIdSchema.describe("IngestionSegmentId");
+export type IngestionSegmentId = z.infer<typeof IngestionSegmentIdSchema>;
+
+export const IngestionCandidateIdSchema = IngestionIdSchema.describe("IngestionCandidateId");
+export type IngestionCandidateId = z.infer<typeof IngestionCandidateIdSchema>;
+
+export const SubmissionInputKindSchema = z.enum(["chunk", "full_draft"]);
+export type SubmissionInputKind = z.infer<typeof SubmissionInputKindSchema>;
+
+export const IngestionWorkflowStateSchema = z.enum([
+  "submitted",
+  "extracted",
+  "needs_review",
+  "partially_approved",
+  "approved",
+  "checked"
+]);
+export type IngestionWorkflowState = z.infer<typeof IngestionWorkflowStateSchema>;
+
+export const StructuredCandidateKindSchema = z.enum([
+  "entity",
+  "state_boundary",
+  "event",
+  "causal_link",
+  "rule"
+]);
+export type StructuredCandidateKind = z.infer<typeof StructuredCandidateKindSchema>;
+
+export const ReviewNeededReasonSchema = z.enum([
+  "low_confidence",
+  "conflicting_candidates",
+  "normalization_failed"
+]);
+export type ReviewNeededReason = z.infer<typeof ReviewNeededReasonSchema>;
+
+export const RuleCandidateNormalizedPayloadSchema = z.object({
+  metadata: RulePackMetadataSchema,
+  version: NormalizedExecutableRuleSchema
+});
+export type RuleCandidateNormalizedPayload = z.infer<typeof RuleCandidateNormalizedPayloadSchema>;
+
+export const StructuredNormalizedPayloadSchema = z.union([
+  CanonicalEntitySchema,
+  CharacterStateBoundarySchema,
+  CanonicalEventSchema,
+  CausalLinkSchema,
+  RuleCandidateNormalizedPayloadSchema
+]);
+export type StructuredNormalizedPayload = z.infer<typeof StructuredNormalizedPayloadSchema>;
+
+export const IngestionSessionRecordSchema = z.object({
+  sessionId: IngestionSessionIdSchema,
+  storyId: StoryIdSchema.nullable().optional().default(null),
+  revisionId: RevisionIdSchema.nullable().optional().default(null),
+  draftTitle: z.string().default(""),
+  defaultRulePackName: z.string().default("reality-default"),
+  inputKind: SubmissionInputKindSchema,
+  rawText: z.string().min(1),
+  workflowState: IngestionWorkflowStateSchema,
+  promptFamily: z.string().min(1),
+  modelName: z.string().min(1),
+  lastVerdictRunId: VerdictRunIdSchema.nullable().optional().default(null),
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1),
+  lastCheckedAt: z.string().nullable().optional().default(null)
+});
+export type IngestionSessionRecord = z.infer<typeof IngestionSessionRecordSchema>;
+
+export const IngestionSegmentRecordSchema = z.object({
+  segmentId: IngestionSegmentIdSchema,
+  sessionId: IngestionSessionIdSchema,
+  sequence: z.number().int().nonnegative(),
+  label: z.string().min(1),
+  startOffset: z.number().int().nonnegative(),
+  endOffset: z.number().int().nonnegative(),
+  segmentText: z.string().min(1),
+  workflowState: IngestionWorkflowStateSchema,
+  approvedAt: z.string().nullable().optional().default(null)
+});
+export type IngestionSegmentRecord = z.infer<typeof IngestionSegmentRecordSchema>;
+
+export const IngestionCandidateRecordSchema = z.object({
+  candidateId: IngestionCandidateIdSchema,
+  sessionId: IngestionSessionIdSchema,
+  segmentId: IngestionSegmentIdSchema,
+  candidateKind: StructuredCandidateKindSchema,
+  canonicalKey: z.string().min(1),
+  confidence: z.number().min(0).max(1),
+  reviewNeeded: z.boolean(),
+  reviewNeededReason: ReviewNeededReasonSchema.nullable().optional().default(null),
+  sourceSpanStart: z.number().int().nonnegative(),
+  sourceSpanEnd: z.number().int().nonnegative(),
+  provenanceDetail: JsonRecordSchema,
+  extractedPayload: z.unknown(),
+  correctedPayload: z.unknown().nullable().optional().default(null),
+  normalizedPayload: StructuredNormalizedPayloadSchema.nullable().optional().default(null)
+});
+export type IngestionCandidateRecord = z.infer<typeof IngestionCandidateRecordSchema>;
+
+export const StructuredExtractionSegmentSchema = z.object({
+  segmentId: IngestionSegmentIdSchema,
+  workflowState: IngestionWorkflowStateSchema,
+  candidates: z.array(IngestionCandidateRecordSchema).default([])
+});
+export type StructuredExtractionSegment = z.infer<typeof StructuredExtractionSegmentSchema>;
+
+export const StructuredExtractionBatchSchema = z.object({
+  sessionId: IngestionSessionIdSchema,
+  segments: z.array(StructuredExtractionSegmentSchema).default([])
+});
+export type StructuredExtractionBatch = z.infer<typeof StructuredExtractionBatchSchema>;
+
+export const IngestionSegmentSnapshotSchema = z.object({
+  segment: IngestionSegmentRecordSchema,
+  candidates: z.array(IngestionCandidateRecordSchema).default([])
+});
+export type IngestionSegmentSnapshot = z.infer<typeof IngestionSegmentSnapshotSchema>;
+
+export const IngestionSessionSnapshotSchema = z.object({
+  session: IngestionSessionRecordSchema,
+  segments: z.array(IngestionSegmentSnapshotSchema).default([])
+});
+export type IngestionSessionSnapshot = z.infer<typeof IngestionSessionSnapshotSchema>;

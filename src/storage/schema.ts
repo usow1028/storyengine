@@ -6,6 +6,9 @@ import { runSql } from "./db.js";
 export const canonicalTableNames = [
   "stories",
   "story_revisions",
+  "ingestion_sessions",
+  "ingestion_segments",
+  "ingestion_candidates",
   "entities",
   "place_hierarchy",
   "character_state_boundaries",
