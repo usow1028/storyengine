@@ -16,6 +16,7 @@ interface BuildExplainedVerdictRecordInput {
   availableRules: ActiveRuleSnapshot[];
   boundaryFactsByCharacterId?: Record<string, CharacterBoundaryFacts>;
   verdictId?: string;
+  runId?: string;
   createdAt?: string;
 }
 
@@ -67,6 +68,7 @@ export function buildExplainedVerdictRecord(
   return VerdictRecordSchema.parse({
     verdictId:
       input.verdictId ?? `verdict:${input.graph.revision.revisionId}:${event.sequence}:${event.eventId}`,
+    runId: input.runId,
     storyId: input.graph.story.storyId,
     revisionId: input.graph.revision.revisionId,
     verdictKind: input.evaluation.verdictKind,
