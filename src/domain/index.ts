@@ -6,3 +6,4 @@ export * from "./rules.js";
 export * from "./verdicts.js";
 export * from "./repairs.js";
 export * from "./transitions.js";
+export * from "./priors.js";
