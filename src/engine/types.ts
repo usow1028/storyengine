@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-import type { CanonicalEvent, NormalizedExecutableRule, RulePackMetadata } from "../domain/index.js";
+import type {
+  CanonicalEvent,
+  NormalizedExecutableRule,
+  RulePackMetadata,
+  VerdictEvidence
+} from "../domain/index.js";
 import {
   CheckerKindSchema,
   EventIdSchema,
@@ -46,6 +51,24 @@ export interface EventCheckContext {
   previousEvent?: CanonicalEvent;
   activeRules: ActiveRuleSnapshot[];
   boundaryFactsByCharacterId?: Record<string, CharacterBoundaryFacts>;
+}
+
+export interface BuildEvidenceSnapshotInput {
+  representativeFinding?: SupportingFinding;
+  supportingFindings: SupportingFinding[];
+  notEvaluated: NotEvaluatedFinding[];
+  graph: CanonicalStoryGraph;
+  event: CanonicalEvent;
+  previousEvent?: CanonicalEvent;
+  activeRules: ActiveRuleSnapshot[];
+  boundaryFactsByCharacterId?: Record<string, CharacterBoundaryFacts>;
+}
+
+export interface DeterministicExplanationInput {
+  verdictKind: VerdictKind;
+  representativeChecker?: CheckerKind;
+  reasonCode?: string;
+  evidence: VerdictEvidence;
 }
 
 export const HardConstraintEvaluationSchema = z.object({

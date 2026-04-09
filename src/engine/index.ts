@@ -3,6 +3,8 @@ export * from "./reason-codes.js";
 export * from "./rule-activation.js";
 export * from "./verdict-aggregator.js";
 export * from "./hard-constraint-engine.js";
+export * from "./evidence-snapshots.js";
+export * from "./explanation-renderer.js";
 export * from "./checkers/time-checker.js";
 export * from "./checkers/space-checker.js";
 export * from "./checkers/physics-checker.js";
