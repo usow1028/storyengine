@@ -4,7 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "npm run build:server && npm run build:ui",
+    "build:server": "tsc -p tsconfig.json",
+    "build:ui": "vite build",
+    "dev:ui": "vite --host 127.0.0.1",
+    "inspection:test-server": "node --import tsx tests/browser/inspection-test-server.ts",
     "build:priors": "node --import tsx scripts/build-priors.ts",
     "test": "vitest run",
     "test:canonical": "vitest run tests/canonical",
@@ -12,19 +16,26 @@
     "test:ingestion": "vitest run tests/storage/ingestion-session-repository.test.ts tests/services/natural-language-extraction.test.ts tests/services/ingestion-review-workflow.test.ts tests/api/ingestion-review-api.test.ts tests/api/check-controls-api.test.ts",
     "test:priors": "vitest run tests/corpus/corpus-normalization.test.ts tests/corpus/prior-build.test.ts tests/engine/soft-prior-scoring.test.ts tests/engine/repair-plausibility.test.ts",
     "test:reasoning": "vitest run tests/engine/evidence-traces.test.ts tests/engine/repair-generator.test.ts tests/engine/verdict-runner.test.ts tests/engine/verdict-diff.test.ts",
+    "test:browser": "playwright test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fastify/static": "^9.1.0",
     "fastify": "^5.8.4",
     "pg": "^8.16.3",
     "pg-mem": "^3.0.5",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@types/node": "^24.6.1",
     "@types/pg": "^8.15.5",
+    "@vitejs/plugin-react": "^6.0.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
+    "vite": "^8.0.8",
     "vitest": "^3.2.4"
   }
 }
