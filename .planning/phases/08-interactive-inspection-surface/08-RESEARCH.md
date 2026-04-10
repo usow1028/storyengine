@@ -488,22 +488,25 @@ test("user can inspect grouped verdict detail", async ({ page }) => {
 | A4 | Existing npm workflow should continue instead of switching to pnpm for this phase. | Standard Stack | If the project decides to adopt pnpm now, install and script tasks need package-manager migration work. |
 | A5 | Playwright-managed Chromium installation is acceptable for browser verification. | Environment Availability | If managed browser installs are forbidden, the planner must require system Chromium/Chrome installation or a CI image with browsers preinstalled. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should Phase 8 persist sanitized advisory and repair snapshots?**
    - What we know: Phase 7 returns `softPrior` at check time, but current repositories persist only runs and hard verdict records. [VERIFIED: 07-VERIFICATION.md] [VERIFIED: codebase]
    - What's unclear: Whether inspection must show exact historical advisory data after prior config or snapshots change. [ASSUMED]
    - Recommendation: Persist a sanitized inspection snapshot because Phase 8 is about inspecting a run, not recalculating a new advisory view. [ASSUMED]
+   - **RESOLVED:** Phase 8 planning will persist a sanitized inspection snapshot at check time. The read API must not recompute soft-prior advisory data for historical runs.
 
 2. **Is the inspection surface local-only for v1?**
    - What we know: The project has no authentication or authorization layer in the inspected Fastify app. [VERIFIED: src/api/app.ts]
    - What's unclear: Whether Phase 8 will be exposed beyond a trusted local/dev environment. [ASSUMED]
    - Recommendation: Keep the surface local/internal for Phase 8 or add explicit access-control requirements before exposing run IDs publicly. [ASSUMED]
+   - **RESOLVED:** Phase 8 treats the inspection surface as local/internal. Public or multi-user exposure requires a later explicit access-control phase.
 
 3. **Should navigation start from latest run or explicit run ID?**
    - What we know: The repository can fetch latest run by revision and list runs for a revision. [VERIFIED: src/storage/repositories/verdict-run-repository.ts]
    - What's unclear: Whether the first route should be `/inspection/runs/:runId`, `/inspection/revisions/:revisionId/latest`, or both. [ASSUMED]
    - Recommendation: Make `runId` the canonical inspection route and optionally add a latest-run redirect/helper later. [ASSUMED]
+   - **RESOLVED:** `/inspection/runs/:runId` is the canonical browser route and `/api/inspection/runs/:runId` is the canonical JSON route for Phase 8.
 
 ## Environment Availability
 
