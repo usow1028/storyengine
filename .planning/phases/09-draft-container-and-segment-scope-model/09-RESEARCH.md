@@ -439,17 +439,17 @@ expect(snapshot.session.rawText.slice(segment.startOffset, segment.endOffset)).t
 |---|-------|---------|---------------|
 | A1 | A user may have an external PostgreSQL database outside this checkout. | Open Questions | If wrong, the additive/no-backfill recommendation is still safe; if true, planner should note that normal external migration application is required. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should old ingestion rows be physically backfilled into draft tables?**
    - What we know: No persistent in-repo database exists, and current tests create fresh pg-mem schemas. [VERIFIED: runtime state audit] [VERIFIED: tests/storage/ingestion-session-repository.test.ts]
    - What's unclear: A user may have an external PostgreSQL database outside this checkout. [ASSUMED]
-   - Recommendation: Make migration schema additive and nullable, and make repository loading synthesize compatibility draft metadata when draft rows are absent. [VERIFIED: src/storage/migrations/0003_ingestion_review.sql]
+   - RESOLVED: Use additive nullable schema changes with no physical backfill in Phase 9. Repository reads must synthesize compatibility draft document/revision metadata when legacy ingestion rows lack draft table records. [VERIFIED: src/storage/migrations/0003_ingestion_review.sql]
 
 2. **Should chapter headings and section headings be separate concepts now?**
    - What we know: The context allows either an enum-backed structure or a generic hierarchy node, provided Phase 9 supports chapter/section plus segments. [CITED: .planning/phases/09-draft-container-and-segment-scope-model/09-CONTEXT.md]
    - What's unclear: No product format has locked separate heading levels. [CITED: .planning/REQUIREMENTS.md]
-   - Recommendation: Use one lightweight `DraftSection` with `sectionKind: "chapter" | "section"`; avoid recursive hierarchy until a later format-specific phase. [CITED: .planning/phases/09-draft-container-and-segment-scope-model/09-CONTEXT.md]
+   - RESOLVED: Use one lightweight `DraftSection` structure with `sectionKind: "chapter" | "section"`; avoid recursive hierarchy until a later format-specific phase. [CITED: .planning/phases/09-draft-container-and-segment-scope-model/09-CONTEXT.md]
 
 ## Environment Availability
 
@@ -481,11 +481,11 @@ expect(snapshot.session.rawText.slice(segment.startOffset, segment.endOffset)).t
 ### Phase Requirements → Test Map
 | Req ID | Behavior | Test Type | Automated Command | File Exists? |
 |--------|----------|-----------|-------------------|--------------|
-| DRAFT-01 | Submit chapter-scale draft as document/revision/section/segment structure | unit + API | `vitest run tests/services/natural-language-extraction.test.ts tests/api/ingestion-review-api.test.ts -x` | ✅ extend existing files. [VERIFIED: tests/services/natural-language-extraction.test.ts] [VERIFIED: tests/api/ingestion-review-api.test.ts] |
-| DRAFT-01 | Persist draft containers and revision/section metadata | storage | `vitest run tests/storage/ingestion-session-repository.test.ts -x` | ✅ extend existing file. [VERIFIED: tests/storage/ingestion-session-repository.test.ts] |
-| DRAFT-03 | Segment labels/order/offset/source refs survive repository round trip | storage | `vitest run tests/storage/ingestion-session-repository.test.ts -x` | ✅ extend existing file. [VERIFIED: tests/storage/ingestion-session-repository.test.ts] |
-| DRAFT-03 | Segment labels/order/offset/source refs survive API serialization | API | `vitest run tests/api/ingestion-review-api.test.ts tests/api/check-controls-api.test.ts -x` | ✅ extend existing files. [VERIFIED: tests/api/ingestion-review-api.test.ts] [VERIFIED: tests/api/check-controls-api.test.ts] |
-| DRAFT-03 | Check scope can be represented as domain contract | unit + storage | `vitest run tests/storage/ingestion-session-repository.test.ts -x` | ❌ add scope-specific cases in Wave 0 or Plan 09-01. [CITED: .planning/ROADMAP.md] |
+| DRAFT-01 | Submit chapter-scale draft as document/revision/section/segment structure | unit + API | `npm exec -- vitest run tests/services/natural-language-extraction.test.ts tests/api/ingestion-review-api.test.ts --bail=1` | ✅ extend existing files. [VERIFIED: tests/services/natural-language-extraction.test.ts] [VERIFIED: tests/api/ingestion-review-api.test.ts] |
+| DRAFT-01 | Persist draft containers and revision/section metadata | storage | `npm exec -- vitest run tests/storage/ingestion-session-repository.test.ts --bail=1` | ✅ extend existing file. [VERIFIED: tests/storage/ingestion-session-repository.test.ts] |
+| DRAFT-03 | Segment labels/order/offset/source refs survive repository round trip | storage | `npm exec -- vitest run tests/storage/ingestion-session-repository.test.ts --bail=1` | ✅ extend existing file. [VERIFIED: tests/storage/ingestion-session-repository.test.ts] |
+| DRAFT-03 | Segment labels/order/offset/source refs survive API serialization | API | `npm exec -- vitest run tests/api/ingestion-review-api.test.ts tests/api/check-controls-api.test.ts --bail=1` | ✅ extend existing files. [VERIFIED: tests/api/ingestion-review-api.test.ts] [VERIFIED: tests/api/check-controls-api.test.ts] |
+| DRAFT-03 | Check scope can be represented as domain contract | unit + storage | `npm exec -- vitest run tests/storage/ingestion-session-repository.test.ts --bail=1` | ❌ add scope-specific cases in Wave 0 or Plan 09-01. [CITED: .planning/ROADMAP.md] |
 | DRAFT-03 | Existing `chunk` and `full_draft` compatibility remains valid | regression | `npm run test:ingestion` | ✅ existing suite passes before Phase 9. [VERIFIED: npm run test:ingestion] |
 
 ### Sampling Rate

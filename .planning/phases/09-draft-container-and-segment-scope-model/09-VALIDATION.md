@@ -38,10 +38,10 @@ created: 2026-04-10
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 09-01-01 | 01 | 1 | DRAFT-01, DRAFT-03 | T-09-01 / T-09-02 | Zod validates draft identity, source refs, and scope ranges before persistence/API use | unit | `vitest run tests/domain/drafts.test.ts -x` | no - Wave 0 creates | pending |
-| 09-01-02 | 01 | 1 | DRAFT-01, DRAFT-03 | T-09-02 | Deterministic segment planning preserves LF-normalized source offsets and compatibility output | unit | `vitest run tests/services/natural-language-extraction.test.ts -x` | yes | pending |
-| 09-02-01 | 02 | 2 | DRAFT-01, DRAFT-03 | T-09-01 / T-09-03 | SQL persistence uses parameterized queries and preserves draft/scope metadata round trips | storage | `vitest run tests/storage/ingestion-session-repository.test.ts -x` | yes | pending |
-| 09-03-01 | 03 | 3 | DRAFT-01, DRAFT-03 | T-09-03 / T-09-04 | API serialization exposes additive draft fields while retaining existing compatibility fields | API | `vitest run tests/api/ingestion-review-api.test.ts tests/api/check-controls-api.test.ts -x` | yes | pending |
+| 09-01-01 | 01 | 1 | DRAFT-01, DRAFT-03 | T-09-01 / T-09-02 | Zod validates draft identity, source refs, and scope ranges before persistence/API use | unit | `npm exec -- vitest run tests/domain/drafts.test.ts --bail=1` | no - Wave 0 creates | pending |
+| 09-01-02 | 01 | 1 | DRAFT-01, DRAFT-03 | T-09-02 | Deterministic segment planning preserves LF-normalized source offsets and compatibility output | unit | `npm exec -- vitest run tests/services/natural-language-extraction.test.ts --bail=1` | yes | pending |
+| 09-02-01 | 02 | 2 | DRAFT-01, DRAFT-03 | T-09-01 / T-09-03 | SQL persistence uses parameterized queries and preserves draft/scope metadata round trips | storage | `npm exec -- vitest run tests/storage/ingestion-session-repository.test.ts --bail=1` | yes | pending |
+| 09-03-01 | 03 | 3 | DRAFT-01, DRAFT-03 | T-09-03 / T-09-04 | API serialization exposes additive draft fields while retaining existing compatibility fields | API | `npm exec -- vitest run tests/api/ingestion-review-api.test.ts tests/api/check-controls-api.test.ts --bail=1` | yes | pending |
 
 *Status: pending until execution creates/extends the listed tests.*
 
