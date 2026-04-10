@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   EventEvidenceSummarySchema,
+  CheckerKindSchema,
   MissingPremiseSchema,
   NotEvaluatedFindingSchema,
   RuleEvidenceSummarySchema,
@@ -31,7 +32,9 @@ export const VERDICT_KIND_ORDER = [
   "Consistent"
 ] as const satisfies readonly VerdictKind[];
 
-export const InspectionRepairCandidateSchema = RepairCandidateSchema;
+export const InspectionRepairCandidateSchema = RepairCandidateSchema.extend({
+  plausibilityAdjustment: RepairPlausibilityAdjustmentSchema.nullable().default(null)
+});
 export type InspectionRepairCandidate = z.infer<typeof InspectionRepairCandidateSchema>;
 
 export const InspectionAdvisorySchema = z.discriminatedUnion("status", [
@@ -77,6 +80,31 @@ export const InspectionRunSchema = z.object({
 });
 export type InspectionRun = z.infer<typeof InspectionRunSchema>;
 
+export const InspectionDeterministicVerdictSchema = z.object({
+  verdictId: VerdictIdSchema,
+  verdictKind: VerdictKindSchema,
+  category: ViolationCategorySchema,
+  explanation: z.string().min(1),
+  findingId: z.string().min(1).nullable(),
+  representativeChecker: CheckerKindSchema.nullable(),
+  reasonCode: z.string().min(1).nullable(),
+  createdAt: z.string().min(1)
+});
+export type InspectionDeterministicVerdict = z.infer<
+  typeof InspectionDeterministicVerdictSchema
+>;
+
+export const InspectionEvidenceSummarySchema = z.object({
+  summary: z.string().min(1),
+  eventCount: z.number().int().nonnegative(),
+  stateCount: z.number().int().nonnegative(),
+  ruleCount: z.number().int().nonnegative(),
+  missingPremiseCount: z.number().int().nonnegative(),
+  supportingFindingCount: z.number().int().nonnegative(),
+  relatedEventIds: z.array(EventIdSchema).default([])
+});
+export type InspectionEvidenceSummary = z.infer<typeof InspectionEvidenceSummarySchema>;
+
 export const InspectionVerdictSummarySchema = z.object({
   verdictId: VerdictIdSchema,
   verdictKind: VerdictKindSchema,
@@ -84,6 +112,7 @@ export const InspectionVerdictSummarySchema = z.object({
   explanation: z.string().min(1),
   findingId: z.string().min(1).nullable(),
   reasonCode: z.string().min(1).nullable(),
+  relatedEventIds: z.array(EventIdSchema).default([]),
   eventCount: z.number().int().nonnegative(),
   repairCandidateCount: z.number().int().nonnegative(),
   createdAt: z.string().min(1)
@@ -121,29 +150,6 @@ export const InspectionTraceFieldsSchema = z.object({
 });
 export type InspectionTraceFields = z.infer<typeof InspectionTraceFieldsSchema>;
 
-export const InspectionVerdictDetailSchema = z.object({
-  verdictId: VerdictIdSchema,
-  verdictKind: VerdictKindSchema,
-  category: ViolationCategorySchema,
-  explanation: z.string().min(1),
-  trace: InspectionTraceFieldsSchema,
-  timeline: z.array(InspectionTimelineItemSchema).default([]),
-  eventSummaries: z.array(EventEvidenceSummarySchema).default([]),
-  stateSummaries: z.array(StateEvidenceSummarySchema).default([]),
-  ruleSummaries: z.array(RuleEvidenceSummarySchema).default([]),
-  repairCandidates: z.array(InspectionRepairCandidateSchema).default([]),
-  advisory: InspectionAdvisorySchema,
-  createdAt: z.string().min(1)
-});
-export type InspectionVerdictDetail = z.infer<typeof InspectionVerdictDetailSchema>;
-
-export const InspectionGroupSchema = z.object({
-  verdictKind: VerdictKindSchema,
-  count: z.number().int().nonnegative(),
-  verdicts: z.array(InspectionVerdictSummarySchema).default([])
-});
-export type InspectionGroup = z.infer<typeof InspectionGroupSchema>;
-
 export const InspectionDiffSchema = z.object({
   currentRunId: z.string().min(1),
   previousRunId: z.string().min(1).nullable(),
@@ -154,6 +160,32 @@ export const InspectionDiffSchema = z.object({
   changedSupportingFindings: z.array(z.string().min(1)).default([])
 });
 export type InspectionDiff = z.infer<typeof InspectionDiffSchema>;
+
+export const InspectionVerdictDetailSchema = z.object({
+  verdictId: VerdictIdSchema,
+  verdictKind: VerdictKindSchema,
+  category: ViolationCategorySchema,
+  explanation: z.string().min(1),
+  deterministicVerdict: InspectionDeterministicVerdictSchema,
+  evidenceSummary: InspectionEvidenceSummarySchema,
+  trace: InspectionTraceFieldsSchema,
+  timeline: z.array(InspectionTimelineItemSchema).default([]),
+  eventSummaries: z.array(EventEvidenceSummarySchema).default([]),
+  stateSummaries: z.array(StateEvidenceSummarySchema).default([]),
+  ruleSummaries: z.array(RuleEvidenceSummarySchema).default([]),
+  repairs: z.array(InspectionRepairCandidateSchema).default([]),
+  advisory: InspectionAdvisorySchema,
+  diff: InspectionDiffSchema.nullable(),
+  createdAt: z.string().min(1)
+});
+export type InspectionVerdictDetail = z.infer<typeof InspectionVerdictDetailSchema>;
+
+export const InspectionGroupSchema = z.object({
+  verdictKind: VerdictKindSchema,
+  count: z.number().int().nonnegative(),
+  verdicts: z.array(InspectionVerdictSummarySchema).default([])
+});
+export type InspectionGroup = z.infer<typeof InspectionGroupSchema>;
 
 export const RunInspectionResponseSchema = z.object({
   run: InspectionRunSchema,
