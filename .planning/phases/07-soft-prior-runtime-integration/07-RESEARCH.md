@@ -309,17 +309,17 @@ const token = `${transition.axis}:${transition.operation}:${transition.toValue ?
 |---|-------|---------|---------------|
 | - | No `[ASSUMED]` claims were used. | All sections | Planner can proceed from verified repo artifacts and locked context. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Should the first API contract expose one aggregate assessment or a per-transition list?**  
+1. **RESOLVED: Should the first API contract expose one aggregate assessment or a per-transition list?**  
    - What we know: Existing `evaluateSoftPriors` scores one `SoftPriorTransitionInput`, and D-07 names a minimum singular assessment payload. [VERIFIED: `src/services/soft-prior-evaluator.ts`, `07-CONTEXT.md`]  
-   - What's unclear: The final aggregation shape for multi-event revisions is not implemented yet. [VERIFIED: `src/services/verdict-runner.ts`]  
-   - Recommendation: Plan one top-level assessment selected from the strongest scored transition for Phase 7, with enough transition evidence to explain the chosen representative pattern; defer per-transition browsing to Phase 8 inspection UI. [VERIFIED: derived from D-07 and deferred UI scope in `07-CONTEXT.md`]
+   - Phase 7 decision: Expose one top-level strongest/representative assessment selected from evaluated adjacent transitions. Select by largest max drift score, then largest `assessment.contributions.length`, then first sequence order. [VERIFIED: derived from D-07 and deferred UI scope in `07-CONTEXT.md`]
+   - Resolution boundary: Do not add a per-transition list or browsing surface in Phase 7; defer richer per-transition inspection to Phase 8 UI work. [VERIFIED: deferred UI scope in `07-CONTEXT.md`]
 
-2. **Should soft-prior assessments be persisted?**  
+2. **RESOLVED: Should soft-prior assessments be persisted?**  
    - What we know: D-02 and deferred scope say not to change hard verdict storage unless planning finds a traceability need. [VERIFIED: `07-CONTEXT.md`]  
-   - What's unclear: Future inspection surfaces may want historical soft-prior assessment records. [VERIFIED: Phase 8 roadmap scope in `.planning/ROADMAP.md`]  
-   - Recommendation: Do not persist assessments in Phase 7; return advisory runtime/API data and leave persistence to a later explicit phase if the inspection UI needs it. [VERIFIED: derived from `07-CONTEXT.md`]
+   - Phase 7 decision: Do not persist soft-prior assessments in Phase 7. Return advisory runtime/API data only, under the separate `softPrior` block, with no migrations and no writes to verdict or verdict-run storage. [VERIFIED: derived from `07-CONTEXT.md`]
+   - Resolution boundary: If later inspection surfaces need historical soft-prior records, handle persistence in a later explicit phase rather than this runtime-integration phase. [VERIFIED: Phase 8 roadmap scope in `.planning/ROADMAP.md`]
 
 ## Environment Availability
 
