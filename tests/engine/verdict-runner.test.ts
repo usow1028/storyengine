@@ -116,11 +116,13 @@ async function executeFixtureVerdictRun(options?: {
   });
   const persistedVerdicts = await verdictRepository.listForRun(result.runId);
   const persistedRun = await verdictRunRepository.getRun(result.runId);
+  const persistedInspectionSnapshot = await verdictRunRepository.getInspectionSnapshot(result.runId);
 
   return {
     result,
     persistedVerdicts,
-    persistedRun
+    persistedRun,
+    persistedInspectionSnapshot
   };
 }
 
@@ -215,6 +217,43 @@ describe("verdict runner", () => {
     expect(result.softPrior.status).toBe("available");
   });
 
+  it("persists a disabled inspection snapshot with generated repairs", async () => {
+    const run = await executeFixtureVerdictRun();
+
+    expect(run.result.softPrior.status).toBe("disabled");
+    expect(run.persistedInspectionSnapshot?.runId).toBe(run.result.runId);
+    expect(run.persistedInspectionSnapshot?.createdAt).toBe("2026-04-09T12:10:00Z");
+    expect(run.persistedInspectionSnapshot?.repairCandidates.length).toBeGreaterThan(0);
+    expect(run.persistedInspectionSnapshot?.advisory.status).toBe("disabled");
+    expect(run.persistedInspectionSnapshot?.advisory.assessment).toBeNull();
+    expect(run.persistedInspectionSnapshot?.advisory.rerankedRepairs).toEqual([]);
+    expect(run.persistedInspectionSnapshot?.advisory.repairPlausibilityAdjustments).toEqual([]);
+  });
+
+  it("persists an available inspection snapshot with advisory repair ranking", async () => {
+    const { snapshotSet, genreWeights } = buildSnapshotSetFixture();
+    const run = await executeFixtureVerdictRun({
+      softPriorConfig: {
+        enabled: true,
+        snapshotSet,
+        genreWeights,
+        worldProfile: "fantasy-light"
+      }
+    });
+
+    const snapshot = run.persistedInspectionSnapshot;
+    expect(snapshot?.runId).toBe(run.result.runId);
+    expect(snapshot?.repairCandidates.length).toBeGreaterThan(0);
+    expect(snapshot?.advisory.status).toBe("available");
+    if (snapshot?.advisory.status !== "available") {
+      throw new Error("Expected available advisory snapshot.");
+    }
+
+    expect(snapshot.advisory.assessment.representativePatternSummary).toContain("instant arrival");
+    expect(snapshot.advisory.rerankedRepairs.length).toBeGreaterThan(0);
+    expect(snapshot.advisory.repairPlausibilityAdjustments.length).toBeGreaterThan(0);
+  });
+
   it("keeps persisted hard verdicts and run metadata invariant when soft priors are enabled", async () => {
     const { snapshotSet, genreWeights } = buildSnapshotSetFixture();
     const disabledRun = await executeFixtureVerdictRun();
@@ -233,10 +272,32 @@ describe("verdict runner", () => {
       hardVerdictProjection(enabledRun.persistedVerdicts)
     );
     expect(runProjection(disabledRun.persistedRun)).toEqual(runProjection(enabledRun.persistedRun));
+    expect(disabledRun.persistedInspectionSnapshot?.repairCandidates).toEqual(
+      enabledRun.persistedInspectionSnapshot?.repairCandidates
+    );
+    expect(disabledRun.persistedInspectionSnapshot?.advisory.status).toBe("disabled");
+    expect(enabledRun.persistedInspectionSnapshot?.advisory.status).toBe("available");
     expect(
       hardVerdictProjection(enabledRun.persistedVerdicts).some(
         (verdict) => verdict.verdictKind === "Hard Contradiction"
       )
     ).toBe(true);
+  });
+
+  it("does not persist raw prior runtime config or corpus source IDs in inspection snapshots", async () => {
+    const { snapshotSet, genreWeights } = buildSnapshotSetFixture();
+    const run = await executeFixtureVerdictRun({
+      softPriorConfig: {
+        enabled: true,
+        snapshotSet,
+        genreWeights,
+        worldProfile: "fantasy-light"
+      }
+    });
+
+    const serialized = JSON.stringify(run.persistedInspectionSnapshot);
+    expect(serialized).not.toContain("sourceWorkIds");
+    expect(serialized).not.toContain("snapshotDir");
+    expect(serialized).not.toContain("snapshotSet");
   });
 });
