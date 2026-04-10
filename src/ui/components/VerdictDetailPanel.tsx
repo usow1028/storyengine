@@ -1,5 +1,8 @@
 import { EvidenceSummary } from "./EvidenceSummary.js";
+import { EvidenceTimeline } from "./EvidenceTimeline.js";
 import { RepairCandidates } from "./RepairCandidates.js";
+import { SoftPriorAdvisoryBand } from "./SoftPriorAdvisoryBand.js";
+import { TraceFields } from "./TraceFields.js";
 import type { InspectionVerdictDetail, VerdictKind } from "../types.js";
 
 interface VerdictDetailPanelProps {
@@ -82,7 +85,10 @@ export function VerdictDetailPanel({ detail }: VerdictDetailPanelProps) {
       </section>
 
       <EvidenceSummary detail={detail} />
+      <EvidenceTimeline timeline={detail.timeline} />
+      <TraceFields trace={detail.trace} />
       <RepairCandidates repairs={detail.repairs} />
+      <SoftPriorAdvisoryBand advisory={detail.advisory} />
     </section>
   );
 }

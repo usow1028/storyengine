@@ -63,7 +63,10 @@ dt,
 .row-cta,
 .verdict-badge,
 .repair-rank,
-.repair-heading {
+.repair-heading,
+.timeline-heading,
+.trace-toggle,
+.trace-more {
   font-size: 14px;
   font-weight: 600;
   line-height: 1.4;
@@ -159,7 +162,15 @@ dd {
 .detail-section,
 .evidence-block,
 .evidence-list,
+.timeline-list,
+.trace-content,
+.trace-grid,
+.trace-values,
+.advisory-content,
+.advisory-block,
+.advisory-list,
 .repair-list,
+.advisory-item,
 .repair-item {
   display: grid;
   gap: 16px;
@@ -323,6 +334,129 @@ dd {
   color: #007c89;
 }
 
+.section-heading-row,
+.timeline-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.timeline-list {
+  position: relative;
+  gap: 0;
+  padding-top: 16px;
+}
+
+.timeline-item {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 16px;
+  padding: 0 0 24px;
+  position: relative;
+}
+
+.timeline-item::before {
+  content: "";
+  position: absolute;
+  top: 44px;
+  bottom: 0;
+  left: 21px;
+  width: 2px;
+  background: #c8d2cc;
+}
+
+.timeline-item:last-child::before {
+  display: none;
+}
+
+.timeline-marker {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #007c89;
+  border-radius: 8px;
+  background: #fafafa;
+  color: #007c89;
+  font-weight: 600;
+}
+
+.timeline-copy {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+  padding-bottom: 8px;
+}
+
+.timeline-fields {
+  padding-top: 0;
+}
+
+.trace-toggle,
+.trace-more {
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid #007c89;
+  border-radius: 8px;
+  background: #fafafa;
+  color: #007c89;
+  cursor: pointer;
+}
+
+.trace-toggle:hover,
+.trace-toggle:focus-visible,
+.trace-more:hover,
+.trace-more:focus-visible {
+  outline: 2px solid #007c89;
+  outline-offset: 2px;
+}
+
+.trace-content {
+  padding-top: 16px;
+}
+
+.trace-grid {
+  gap: 12px;
+}
+
+.trace-field {
+  display: grid;
+  gap: 8px;
+  padding: 12px 0;
+  border-top: 1px solid #d7ded9;
+}
+
+.trace-values {
+  gap: 8px;
+}
+
+.trace-values li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.advisory-band {
+  border-left: 4px solid #007c89;
+  padding-left: 20px;
+}
+
+.boundary-note {
+  color: #0f766e;
+  font-weight: 600;
+}
+
+.advisory-block {
+  padding-top: 16px;
+  border-top: 1px solid #d7ded9;
+}
+
+.advisory-item {
+  padding: 16px 0;
+  border-top: 1px solid #d7ded9;
+}
+
 @media (max-width: 1023px) {
   .inspection-layout {
     gap: 16px;
@@ -365,6 +499,8 @@ dd {
 @media (max-width: 480px) {
   .verdict-row-meta,
   .repair-heading,
+  .section-heading-row,
+  .timeline-heading,
   .run-metadata,
   .detail-metadata,
   .field-grid,
