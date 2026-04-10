@@ -15,7 +15,7 @@ function createTestClient() {
   return { memory, pool };
 }
 
-const repairCandidate = {
+const repairCandidate: RunInspectionSnapshot["repairCandidates"][number] = {
   repairId: "repair:missing-bridge",
   repairType: "add_missing_assumption",
   reasonCode: "missing_bridge",
@@ -26,7 +26,7 @@ const repairCandidate = {
     assumptionText: "The room was opened by a guard before the scene.",
     relatedEventId: "event:locked-room"
   }
-} as const;
+};
 
 const snapshot: RunInspectionSnapshot = {
   runId: "run:inspection-1",

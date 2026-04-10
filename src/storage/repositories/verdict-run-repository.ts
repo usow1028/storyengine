@@ -1,5 +1,10 @@
-import { VerdictRunRecordSchema, type VerdictRunRecord } from "../../domain/index.js";
-import type { SqlQueryable } from "../db.js";
+import {
+  RunInspectionSnapshotSchema,
+  VerdictRunRecordSchema,
+  type RunInspectionSnapshot,
+  type VerdictRunRecord
+} from "../../domain/index.js";
+import { asJson, type SqlQueryable } from "../db.js";
 
 export class VerdictRunRepository {
   constructor(private readonly client: SqlQueryable) {}
@@ -104,5 +109,49 @@ export class VerdictRunRepository {
   ): Promise<VerdictRunRecord | undefined> {
     const runs = await this.listRunsForRevision(storyId, revisionId);
     return runs.length > 0 ? runs[runs.length - 1] : undefined;
+  }
+
+  async saveInspectionSnapshot(
+    runId: string,
+    snapshotInput: RunInspectionSnapshot
+  ): Promise<void> {
+    const snapshot = RunInspectionSnapshotSchema.parse(snapshotInput);
+    if (snapshot.runId !== runId) {
+      throw new Error(`Inspection snapshot runId mismatch: ${snapshot.runId} !== ${runId}`);
+    }
+
+    const result = await this.client.query(
+      `
+        UPDATE verdict_runs
+        SET inspection_snapshot = CAST($2 AS jsonb)
+        WHERE run_id = $1
+      `,
+      [runId, asJson(snapshot)]
+    );
+
+    if (result.rowCount === 0) {
+      throw new Error(`Verdict run not found: ${runId}`);
+    }
+  }
+
+  async getInspectionSnapshot(runId: string): Promise<RunInspectionSnapshot | undefined> {
+    const row = (
+      await this.client.query<{
+        inspectionSnapshot?: unknown | null;
+      }>(
+        `
+          SELECT inspection_snapshot AS "inspectionSnapshot"
+          FROM verdict_runs
+          WHERE run_id = $1
+        `,
+        [runId]
+      )
+    ).rows[0];
+
+    if (!row?.inspectionSnapshot) {
+      return undefined;
+    }
+
+    return RunInspectionSnapshotSchema.parse(row.inspectionSnapshot);
   }
 }
