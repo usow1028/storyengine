@@ -22,6 +22,10 @@ export interface SoftPriorRuntimeConfig {
 
 export interface SoftPriorUnavailableResult {
   status: Exclude<SoftPriorRuntimeStatus, "available">;
+  reason: string;
+  assessment: null;
+  rerankedRepairs: [];
+  repairPlausibilityAdjustments: [];
 }
 
 export interface SoftPriorAvailableResult {
@@ -86,6 +90,19 @@ function isMissingSnapshotError(error: unknown): boolean {
   return (error as NodeJS.ErrnoException | undefined)?.code === "ENOENT";
 }
 
+function unavailableResult(
+  status: SoftPriorUnavailableResult["status"],
+  reason: string
+): SoftPriorUnavailableResult {
+  return {
+    status,
+    reason,
+    assessment: null,
+    rerankedRepairs: [],
+    repairPlausibilityAdjustments: []
+  };
+}
+
 function shouldReplaceBestCandidate(
   current: CandidateEvaluation,
   best?: CandidateEvaluation
@@ -147,16 +164,19 @@ export async function evaluateConfiguredSoftPrior(
 ): Promise<SoftPriorAdvisoryResult> {
   const config = input.softPriorConfig;
   if (config?.enabled !== true) {
-    return { status: "disabled" };
+    return unavailableResult("disabled", "Soft-prior runtime is disabled.");
   }
 
   const transitions = buildSoftPriorTransitionInputs(input.graph, config);
   if (transitions.length === 0) {
-    return { status: "insufficient_context" };
+    return unavailableResult(
+      "insufficient_context",
+      "At least two canonical events are required for soft-prior evaluation."
+    );
   }
 
   if (!config.snapshotSet && !config.snapshotDir) {
-    return { status: "missing_snapshot" };
+    return unavailableResult("missing_snapshot", "No prior snapshot source configured.");
   }
 
   let bestCandidate: CandidateEvaluation | undefined;
@@ -184,15 +204,18 @@ export async function evaluateConfiguredSoftPrior(
       }
     } catch (error) {
       if (isMissingSnapshotError(error)) {
-        return { status: "missing_snapshot" };
+        return unavailableResult("missing_snapshot", "Configured prior snapshot files were not found.");
       }
 
-      return { status: "invalid_snapshot" };
+      return unavailableResult("invalid_snapshot", "Configured prior snapshot artifacts are invalid.");
     }
   }
 
   if (!bestCandidate) {
-    return { status: "insufficient_context" };
+    return unavailableResult(
+      "insufficient_context",
+      "No runtime transitions produced a soft-prior assessment."
+    );
   }
 
   return {

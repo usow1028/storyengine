@@ -1,8 +1,11 @@
 import { z } from "zod";
 
 import {
+  RepairCandidateSchema,
+  RepairPlausibilityAdjustmentSchema,
   ReviewSegmentPatchSchema,
   IngestionSessionSnapshotSchema,
+  SoftPriorAssessmentSchema,
   SubmissionInputKindSchema
 } from "../domain/index.js";
 
@@ -69,13 +72,36 @@ export const IngestionSessionResponseSchema = z.object({
 });
 export type IngestionSessionResponse = z.infer<typeof IngestionSessionResponseSchema>;
 
+export const SoftPriorAdvisoryResponseSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("available"),
+    assessment: SoftPriorAssessmentSchema,
+    rerankedRepairs: z.array(RepairCandidateSchema),
+    repairPlausibilityAdjustments: z.array(RepairPlausibilityAdjustmentSchema)
+  }),
+  z.object({
+    status: z.enum([
+      "disabled",
+      "missing_snapshot",
+      "invalid_snapshot",
+      "insufficient_context"
+    ]),
+    reason: z.string().min(1),
+    assessment: z.null(),
+    rerankedRepairs: z.array(RepairCandidateSchema).length(0),
+    repairPlausibilityAdjustments: z.array(RepairPlausibilityAdjustmentSchema).length(0)
+  })
+]);
+export type SoftPriorAdvisoryResponse = z.infer<typeof SoftPriorAdvisoryResponseSchema>;
+
 export const CheckIngestionResponseSchema = z.object({
   sessionId: z.string().min(1),
   workflowState: z.literal("checked"),
   storyId: z.string().min(1),
   revisionId: z.string().min(1),
   runId: z.string().min(1),
-  previousRunId: z.string().nullable()
+  previousRunId: z.string().nullable(),
+  softPrior: SoftPriorAdvisoryResponseSchema
 });
 export type CheckIngestionResponse = z.infer<typeof CheckIngestionResponseSchema>;
 

@@ -9,6 +9,7 @@ import {
   VerdictRunRepository
 } from "../storage/index.js";
 import type { IngestionLlmClient } from "../services/ingestion-llm-client.js";
+import type { SoftPriorRuntimeConfig } from "../services/soft-prior-runtime.js";
 import { registerIngestionCheckRoutes } from "./routes/ingestion-check.js";
 import { registerIngestionExtractRoutes } from "./routes/ingestion-extract.js";
 import { registerIngestionReadRoutes } from "./routes/ingestion-read.js";
@@ -23,6 +24,7 @@ export interface StoryGraphApiDependencies {
   verdictRepository: VerdictRepository;
   verdictRunRepository: VerdictRunRepository;
   llmClient: IngestionLlmClient;
+  softPriorConfig?: SoftPriorRuntimeConfig;
   now?: () => string;
   generateId?: () => string;
 }

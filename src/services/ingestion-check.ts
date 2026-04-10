@@ -8,6 +8,10 @@ import {
 } from "../storage/index.js";
 import { executeVerdictRun } from "./verdict-runner.js";
 import { IngestionConflictError } from "./ingestion-review.js";
+import type {
+  SoftPriorAdvisoryResult,
+  SoftPriorRuntimeConfig
+} from "./soft-prior-runtime.js";
 
 interface ExecuteIngestionCheckDependencies {
   ingestionSessionRepository: IngestionSessionRepository;
@@ -15,6 +19,7 @@ interface ExecuteIngestionCheckDependencies {
   ruleRepository: RuleRepository;
   verdictRepository: VerdictRepository;
   verdictRunRepository: VerdictRunRepository;
+  softPriorConfig?: SoftPriorRuntimeConfig;
   now?: () => string;
 }
 
@@ -32,6 +37,7 @@ export async function executeIngestionCheck(
   revisionId: string;
   runId: string;
   previousRunId: string | null;
+  softPrior: SoftPriorAdvisoryResult;
 }> {
   const snapshot = await dependencies.ingestionSessionRepository.loadSessionSnapshot(sessionId);
   const workflowState = IngestionWorkflowStateSchema.parse(snapshot.session.workflowState);
@@ -57,7 +63,8 @@ export async function executeIngestionCheck(
     verdictRepository: dependencies.verdictRepository,
     verdictRunRepository: dependencies.verdictRunRepository,
     triggerKind: "manual",
-    createdAt
+    createdAt,
+    softPriorConfig: dependencies.softPriorConfig
   });
 
   await dependencies.ingestionSessionRepository.setSessionState(sessionId, "checked", {
@@ -72,6 +79,7 @@ export async function executeIngestionCheck(
     storyId: snapshot.session.storyId,
     revisionId: snapshot.session.revisionId,
     runId: verdictRun.runId,
-    previousRunId: verdictRun.previousRunId ?? null
+    previousRunId: verdictRun.previousRunId ?? null,
+    softPrior: verdictRun.softPrior
   };
 }
