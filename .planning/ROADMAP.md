@@ -154,7 +154,7 @@ Plans:
 - [x] 08-02: Persist sanitized inspection snapshots for verdict runs
 - [x] 08-03: Build run-scoped inspection payload service and API route
 - [x] 08-04: Build split-view verdict triage and detail UI
-- [ ] 08-05: Add evidence timeline, structured trace, and advisory UI
+- [x] 08-05: Add evidence timeline, structured trace, and advisory UI
 - [ ] 08-06: Serve the inspection shell and verify browser behavior
 
 ## Progress
@@ -171,4 +171,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 5. Natural-Language Ingestion and Review API | 2/2 | Complete | 2026-04-10 |
 | 6. Verification and Traceability Closure | 3/3 | Complete | 2026-04-10 |
 | 7. Soft-Prior Runtime Integration | 3/3 | Complete | 2026-04-10 |
-| 8. Interactive Inspection Surface | 4/6 | In Progress | - |
+| 8. Interactive Inspection Surface | 5/6 | In Progress | - |
