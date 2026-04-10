@@ -14,17 +14,14 @@ Writers must be able to see exactly why a story is coherent or incoherent, and w
 
 ### Validated
 
+- v1.0 validated the explainable consistency core: canonical story modeling, deterministic hard checks, evidence-backed verdicts, repair reasoning, corpus-derived soft priors, natural-language review/check workflow, and browser inspection surface.
 - Phase 07 validated that corpus-derived soft priors can surface as explainable advisory checked-output data without changing deterministic hard verdict truth.
 - Phase 08 validated that consistency results can be inspected in a structured browser analysis view with verdict triage, deterministic evidence, event timeline, trace fields, repair suggestions, and advisory prior boundaries before advanced visualization is added.
 
 ### Active
 
-- [ ] Model story state with explicit character state, event, and world-rule representations.
-- [ ] Detect hard contradictions in causality, time, space, physical possibility, and character behavior.
-- [ ] Distinguish irrecoverable contradictions from repairable inconsistencies caused by missing justification.
-- [ ] Support reality-first world rules with user-defined rule extensions or overrides.
-- [ ] Produce explainable verdicts with evidence, violation types, and repair suggestions.
-- [ ] Build the first version around logic design, rule taxonomies, and consistency-engine architecture before writer-facing UI expansion.
+- [ ] Define the next milestone requirements with `/gsd-new-milestone`.
+- [ ] Decide whether v1.1 should prioritize full-draft ingestion, collaboration, format packs, or deeper inspection workflows.
 
 ### Out of Scope
 
@@ -37,9 +34,32 @@ Writers must be able to see exactly why a story is coherent or incoherent, and w
 
 The project starts from the belief that story creation can be approached mathematically and engineerably. The user sees narrative as built from long-stabilized archetypes and patterns, and wants a system that can evaluate whether a story follows coherent causal flow rather than relying only on author intuition.
 
-Current writing workflows usually spread ideas, setting notes, scenes, and plot structure across word processors or loose documents. That makes structural validation difficult. This project instead centers a formal consistency engine that can inspect event chains, state transitions, motivations, and world assumptions.
+Current writing workflows usually spread ideas, setting notes, scenes, and plot structure across word processors or loose documents. That makes structural validation difficult. StoryGraph now has a v1.0 consistency core that can persist canonical story graphs, run deterministic verdict checks, propose and rank repairs, surface soft-prior advisory signals, accept natural-language reviewed input, and inspect verdict runs through a browser surface.
 
-The current priority is the engine logic itself: which formal theories should ground consistency judgment, how violations should be classified, what database structures should hold rules and evidence, and how repairable explanations should be represented. Natural-language authoring remains important, but only as an input layer over a structured internal model.
+The next priority should be selected deliberately as a new milestone rather than extending v1.0 in place. Candidate directions include chapter-scale ingestion, collaboration/reviewer workflows, export/format packs, and richer inspection or visualization on top of the verified analysis core.
+
+## Current State
+
+v1.0 MVP shipped on 2026-04-10.
+
+Delivered:
+- Canonical TypeScript/Zod story model and PostgreSQL-style persistence with pg-mem verification.
+- Deterministic hard constraint engine for physical, temporal, causal, and character-state contradictions.
+- Evidence, repair, rerun, and verdict-diff reasoning.
+- Offline corpus prior build pipeline plus soft-prior advisory runtime integration.
+- Natural-language submit/review/approve/check workflow.
+- Structured browser inspection console for verdict triage, evidence, timeline, trace, repair, and advisory review.
+
+Verification:
+- v1.0 milestone audit: passed.
+- Requirements: 19/19 v1 requirements satisfied.
+- Automated checks at milestone close: `npm run test`, `npm run build`, and `npm run test:browser` passed.
+
+## Next Milestone Goals
+
+- Choose the v1.1 product direction with `/gsd-new-milestone`.
+- Keep deterministic verdict truth separate from advisory priors in any new workflow.
+- Preserve explainable evidence and repair traceability as the core acceptance standard.
 
 ## Constraints
 
@@ -53,11 +73,11 @@ The current priority is the engine logic itself: which formal theories should gr
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Use `character state + event + world rule` as the minimum reasoning unit | Story inconsistency is not visible from events alone; character disposition, knowledge, goals, and world constraints must be present to judge coherence | — Pending |
-| Default to real-world physics with optional user rules | Most stories should inherit intuitive constraints first, then selectively permit exceptions such as teleportation or supernatural movement | — Pending |
-| Treat consistency as a hybrid judgment problem | Hard contradictions, repairable gaps, and soft drifts require different reasoning layers instead of a single score | — Pending |
-| Prioritize logic-engine design before polished author UI | The core project risk is not presentation but whether the engine can judge and explain consistency correctly | — Pending |
-| Keep natural-language authoring separate from internal representation | Writers should not be forced to hand-author structured data, but the engine still needs structured states and rules internally | — Pending |
+| Use `character state + event + world rule` as the minimum reasoning unit | Story inconsistency is not visible from events alone; character disposition, knowledge, goals, and world constraints must be present to judge coherence | ✓ Validated in v1.0 |
+| Default to real-world physics with optional user rules | Most stories should inherit intuitive constraints first, then selectively permit exceptions such as teleportation or supernatural movement | ✓ Validated in v1.0 |
+| Treat consistency as a hybrid judgment problem | Hard contradictions, repairable gaps, and soft drifts require different reasoning layers instead of a single score | ✓ Validated in v1.0 |
+| Prioritize logic-engine design before polished author UI | The core project risk is not presentation but whether the engine can judge and explain consistency correctly | ✓ Validated in v1.0 |
+| Keep natural-language authoring separate from internal representation | Writers should not be forced to hand-author structured data, but the engine still needs structured states and rules internally | ✓ Validated in v1.0 |
 
 ## Evolution
 
@@ -77,4 +97,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-10 after Phase 08 interactive inspection surface verification*
+*Last updated: 2026-04-10 after v1.0 milestone completion*
