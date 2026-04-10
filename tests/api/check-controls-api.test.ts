@@ -4,6 +4,12 @@ import type { Pool } from "pg";
 
 import { buildStoryGraphApi } from "../../src/api/app.js";
 import {
+  CheckIngestionResponseSchema,
+  ExtractSubmissionRequestSchema,
+  ReviewSegmentPatchRequestSchema,
+  SubmitIngestionRequestSchema
+} from "../../src/api/schemas.js";
+import {
   applyCanonicalSchema,
   IngestionSessionRepository,
   ProvenanceRepository,
@@ -40,6 +46,13 @@ async function countVerdictRuns(pool: Pool): Promise<number> {
     `SELECT COUNT(*)::text AS count FROM verdict_runs`
   );
   return Number(result.rows[0]?.count ?? "0");
+}
+
+function expectNoRequestPriorConfigFields(parsed: Record<string, unknown>): void {
+  expect(parsed).not.toHaveProperty("snapshotDir");
+  expect(parsed).not.toHaveProperty("snapshotSet");
+  expect(parsed).not.toHaveProperty("genreWeights");
+  expect(parsed).not.toHaveProperty("worldProfile");
 }
 
 describe("ingestion check controls api", () => {
@@ -155,10 +168,72 @@ describe("ingestion check controls api", () => {
 
     expect(checkResponse.statusCode).toBe(200);
     const checked = checkResponse.json();
+    expect(checked).toMatchObject({
+      sessionId: submitted.sessionId,
+      workflowState: "checked",
+      storyId: submitted.storyId,
+      revisionId: submitted.revisionId,
+      previousRunId: null
+    });
     expect(checked.workflowState).toBe("checked");
     expect(checked.runId).toContain("run:");
+    expect(checked.softPrior).toMatchObject({
+      status: "disabled",
+      assessment: null,
+      rerankedRepairs: [],
+      repairPlausibilityAdjustments: []
+    });
+    expect(checked.softPrior.reason).toContain("disabled");
     expect(await countVerdictRuns(pool)).toBe(1);
 
     await app.close();
+  });
+
+  it("preserves soft-prior advisory responses without accepting request prior config fields", () => {
+    const softPrior = {
+      status: "missing_snapshot" as const,
+      reason: "No prior snapshot source configured.",
+      assessment: null,
+      rerankedRepairs: [],
+      repairPlausibilityAdjustments: []
+    };
+    const parsedResponse = CheckIngestionResponseSchema.parse({
+      sessionId: "session:checked",
+      workflowState: "checked",
+      storyId: "story:checked",
+      revisionId: "revision:checked",
+      runId: "run:checked",
+      previousRunId: null,
+      softPrior
+    });
+
+    expect(parsedResponse.softPrior).toEqual(softPrior);
+
+    const submit = SubmitIngestionRequestSchema.parse({
+      submissionKind: "chunk",
+      text: "Alice enters.",
+      draftTitle: "Prior Field Check",
+      snapshotDir: "/tmp/not-trusted",
+      snapshotSet: {},
+      genreWeights: [{ genreKey: "fantasy", weight: 1 }],
+      worldProfile: "fantasy-light"
+    });
+    const extract = ExtractSubmissionRequestSchema.parse({
+      snapshotDir: "/tmp/not-trusted",
+      snapshotSet: {},
+      genreWeights: [{ genreKey: "fantasy", weight: 1 }],
+      worldProfile: "fantasy-light"
+    });
+    const patch = ReviewSegmentPatchRequestSchema.parse({
+      boundary: { label: "Scene" },
+      snapshotDir: "/tmp/not-trusted",
+      snapshotSet: {},
+      genreWeights: [{ genreKey: "fantasy", weight: 1 }],
+      worldProfile: "fantasy-light"
+    });
+
+    expectNoRequestPriorConfigFields(submit);
+    expectNoRequestPriorConfigFields(extract);
+    expectNoRequestPriorConfigFields(patch);
   });
 });
