@@ -207,6 +207,50 @@ function snapshot(runId: string): RunInspectionSnapshot {
   };
 }
 
+function snapshotWithRerankedRepairs(runId: string): RunInspectionSnapshot {
+  const base = snapshot(runId);
+  if (base.advisory.status !== "available") {
+    throw new Error("Expected available advisory in test snapshot.");
+  }
+
+  const lowPriorityRepair = {
+    ...base.repairCandidates[0],
+    repairId: "repair:slow-boat",
+    summary: "Add a slower ocean crossing setup."
+  };
+  const highPriorityRepair = {
+    ...base.repairCandidates[0],
+    repairId: "repair:direct-flight",
+    summary: "Add a direct flight that explains the arrival window."
+  };
+  const unrelatedRepair = base.repairCandidates[1];
+
+  return {
+    ...base,
+    repairCandidates: [lowPriorityRepair, highPriorityRepair, unrelatedRepair],
+    advisory: {
+      ...base.advisory,
+      rerankedRepairs: [highPriorityRepair, lowPriorityRepair, unrelatedRepair],
+      repairPlausibilityAdjustments: [
+        {
+          repairId: highPriorityRepair.repairId,
+          adjustment: 0.4,
+          confidence: 0.9,
+          dominantPriorLayer: "baseline",
+          representativePatternSummary: "Direct travel setup is the strongest repair."
+        },
+        {
+          repairId: lowPriorityRepair.repairId,
+          adjustment: 0.1,
+          confidence: 0.6,
+          dominantPriorLayer: "baseline",
+          representativePatternSummary: "Slow travel setup is less plausible here."
+        }
+      ]
+    }
+  };
+}
+
 describe("inspection payload service", () => {
   let pool: Pool;
   let verdictRepository: VerdictRepository;
@@ -228,7 +272,9 @@ describe("inspection payload service", () => {
     await pool.end();
   });
 
-  async function seedRunWithSnapshot(): Promise<void> {
+  async function seedRunWithSnapshot(
+    runSnapshot: RunInspectionSnapshot = snapshot("run:current")
+  ): Promise<void> {
     await verdictRunRepository.saveRun({
       runId: "run:previous",
       storyId: "story:test",
@@ -314,7 +360,7 @@ describe("inspection payload service", () => {
         createdAt: "2026-04-10T10:00:03Z"
       })
     ]);
-    await verdictRunRepository.saveInspectionSnapshot("run:current", snapshot("run:current"));
+    await verdictRunRepository.saveInspectionSnapshot("run:current", runSnapshot);
   }
 
   it("groups verdict summaries in fixed order and chooses the first verdict in the first non-empty group", async () => {
@@ -403,6 +449,29 @@ describe("inspection payload service", () => {
       addedFindingIds: expect.arrayContaining(["finding:hard"]),
       resolvedFindingIds: expect.arrayContaining(["finding:previous"])
     });
+  });
+
+  it("uses soft-prior reranked repairs when displaying selected verdict repair order", async () => {
+    await seedRunWithSnapshot(snapshotWithRerankedRepairs("run:current"));
+
+    const payload = await buildRunInspectionPayload({
+      runId: "run:current",
+      verdictRunRepository,
+      verdictRepository
+    });
+
+    const parsed = RunInspectionResponseSchema.parse(payload);
+    const detail = parsed.detailsByVerdictId["verdict:hard"];
+
+    expect(detail.repairs.map((repair) => repair.repairId)).toEqual([
+      "repair:direct-flight",
+      "repair:slow-boat"
+    ]);
+    expect(detail.repairs.map((repair) => repair.plausibilityAdjustment?.adjustment)).toEqual([
+      0.4,
+      0.1
+    ]);
+    expect(parsed.groups[0].verdicts[0].repairCandidateCount).toBe(2);
   });
 
   it("returns missing_snapshot advisory details when the run has no stored inspection snapshot", async () => {

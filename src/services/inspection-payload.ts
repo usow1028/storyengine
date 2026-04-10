@@ -96,6 +96,17 @@ function findingIdFor(verdict: VerdictRecord): string | undefined {
   return verdict.evidence.findingId;
 }
 
+function orderedRepairsForSnapshot(snapshot: RunInspectionSnapshot): RepairCandidate[] {
+  if (
+    snapshot.advisory.status === "available" &&
+    snapshot.advisory.rerankedRepairs.length > 0
+  ) {
+    return snapshot.advisory.rerankedRepairs;
+  }
+
+  return snapshot.repairCandidates;
+}
+
 function repairsForVerdict(
   verdict: VerdictRecord,
   snapshot: RunInspectionSnapshot | undefined
@@ -112,7 +123,7 @@ function repairsForVerdict(
     ])
   );
 
-  return snapshot.repairCandidates
+  return orderedRepairsForSnapshot(snapshot)
     .filter((repair) => repair.sourceFindingIds.includes(findingId))
     .map((repair) => ({
       ...repair,
@@ -243,7 +254,7 @@ export async function buildRunInspectionPayload(
       verdictRunRepository: input.verdictRunRepository
     })
   );
-  const repairs = snapshot?.repairCandidates ?? [];
+  const repairs = snapshot ? orderedRepairsForSnapshot(snapshot) : [];
 
   const groups = VERDICT_KIND_ORDER.map((verdictKind) => {
     const groupedVerdicts = verdicts.filter((verdict) => verdict.verdictKind === verdictKind);
