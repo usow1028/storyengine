@@ -5,6 +5,7 @@ export * from "./ingestion-check.js";
 export * from "./ingestion-llm-client.js";
 export * from "./ingestion-review.js";
 export * from "./ingestion-session.js";
+export * from "./inspection-payload.js";
 export * from "./soft-prior-evaluator.js";
 export * from "./soft-prior-runtime.js";
 export * from "./verdict-runner.js";

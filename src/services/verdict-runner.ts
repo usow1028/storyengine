@@ -21,6 +21,7 @@ import {
   type SoftPriorAdvisoryResult,
   type SoftPriorRuntimeConfig
 } from "./soft-prior-runtime.js";
+import { createRunInspectionSnapshot } from "./inspection-payload.js";
 
 export interface ExecuteVerdictRunInput {
   storyId: string;
@@ -160,6 +161,15 @@ export async function executeVerdictRun(
     softPriorConfig: input.softPriorConfig,
     hardVerdictKind: selectHardVerdictKind(verdicts)
   });
+  await input.verdictRunRepository.saveInspectionSnapshot(
+    runId,
+    createRunInspectionSnapshot({
+      runId,
+      createdAt,
+      repairs,
+      softPrior
+    })
+  );
 
   return {
     runId,

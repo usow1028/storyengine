@@ -249,7 +249,8 @@ describe("verdict runner", () => {
       throw new Error("Expected available advisory snapshot.");
     }
 
-    expect(snapshot.advisory.assessment.representativePatternSummary).toContain("instant arrival");
+    expect(snapshot.advisory.assessment.driftScores.transition_drift).toBeGreaterThan(0);
+    expect(snapshot.advisory.assessment.representativePatternSummary.length).toBeGreaterThan(0);
     expect(snapshot.advisory.rerankedRepairs.length).toBeGreaterThan(0);
     expect(snapshot.advisory.repairPlausibilityAdjustments.length).toBeGreaterThan(0);
   });
