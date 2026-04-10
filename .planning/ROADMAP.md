@@ -134,8 +134,8 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 07-01: Integrate prior snapshot loading and advisory evaluation into checked runtime services
-- [ ] 07-02: Extend checked-output contracts and APIs with explainable soft-prior results
+- [x] 07-01: Integrate prior snapshot loading and advisory evaluation into checked runtime services
+- [x] 07-02: Extend checked-output contracts and APIs with explainable soft-prior results
 - [ ] 07-03: Add cross-phase E2E regressions for soft-prior-informed check flows
 
 ### Phase 8: Interactive Inspection Surface
