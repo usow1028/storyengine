@@ -41,7 +41,7 @@ Requirements for the initial consistency-engine release. Each maps to a roadmap 
 - [x] **DATA-01**: System stores canonical story objects, rule packs, verdicts, and provenance in a queryable database
 - [x] **DATA-02**: System supports offline corpus extraction and analysis to build or revise soft priors
 - [x] **FLOW-01**: User can submit natural-language synopsis or scene text and receive a normalized structured interpretation for review
-- [ ] **FLOW-02**: User can inspect consistency results in a structured analysis view before advanced visualization is added
+- [x] **FLOW-02**: User can inspect consistency results in a structured analysis view before advanced visualization is added
 - [x] **FLOW-03**: User can run consistency checks on demand and is not forced into realtime verdicting while drafting
 
 ## v2 Requirements
@@ -98,7 +98,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DATA-02 | Phase 6 | Verified |
 | FLOW-01 | Phase 6 | Verified |
 | FLOW-03 | Phase 6 | Verified |
-| FLOW-02 | Phase 8 | Pending |
+| FLOW-02 | Phase 8 | Verified |
 
 **Coverage:**
 - v1 requirements: 19 total
@@ -107,4 +107,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-04-09*
-*Last updated: 2026-04-10 after Phase 7 soft-prior runtime verification*
+*Last updated: 2026-04-10 after Phase 8 interactive inspection surface verification*

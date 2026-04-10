@@ -19,7 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Natural-Language Ingestion and Review API** - Let writers submit prose-like input and review structured interpretations before checking
 - [x] **Phase 6: Verification and Traceability Closure** - Backfill phase verification artifacts and reconcile requirement traceability for completed milestone work
 - [x] **Phase 7: Soft-Prior Runtime Integration** - Wire advisory prior scoring into the checked runtime path without collapsing hard and soft judgments
-- [ ] **Phase 8: Interactive Inspection Surface** - Provide timeline/graph and structured views for exploring verdicts and repairs
+- [x] **Phase 8: Interactive Inspection Surface** - Provide timeline/graph and structured views for exploring verdicts and repairs
 
 ## Phase Details
 
