@@ -3,7 +3,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { InspectionShell } from "../../src/ui/components/InspectionShell.js";
-import type { RunInspectionResponse } from "../../src/ui/types.js";
+import { SoftPriorAdvisoryBand } from "../../src/ui/components/SoftPriorAdvisoryBand.js";
+import type { InspectionVerdictDetail, RunInspectionResponse } from "../../src/ui/types.js";
 
 function sampleInspectionResponse(): RunInspectionResponse {
   return {
@@ -85,11 +86,69 @@ function sampleInspectionResponse(): RunInspectionResponse {
           ruleVersionIds: ["ruleversion:reality"],
           provenanceIds: [],
           conflictPath: ["event:airport", "event:meeting"],
-          missingPremises: [],
+          missingPremises: [
+            {
+              kind: "missing_prior_event",
+              description: "The transoceanic flight must be established before arrival."
+            },
+            {
+              kind: "missing_context",
+              description: "The elapsed time window must be visible to the reader."
+            },
+            {
+              kind: "missing_anchor",
+              description: "The arrival event needs an anchor before the meeting."
+            },
+            {
+              kind: "missing_assumption",
+              description: "Teleportation is not declared as a world exception."
+            },
+            {
+              kind: "missing_rule",
+              description: "No override rule permits instant travel."
+            },
+            {
+              kind: "missing_prior_event",
+              description: "Airport departure does not imply completed ocean crossing."
+            },
+            {
+              kind: "missing_context",
+              description: "The route between cities is not summarized."
+            }
+          ],
           supportingFindings: [],
           notEvaluated: []
         },
-        timeline: [],
+        timeline: [
+          {
+            eventId: "event:meeting",
+            sequence: 2,
+            eventType: "meeting",
+            summary: "Meeting arrival evidence",
+            abstract: false,
+            actorIds: ["character:a"],
+            targetIds: ["character:b"],
+            placeId: "place:tokyo",
+            timeRelation: "after",
+            relatedStateBoundaryIds: ["boundary:location"],
+            relatedRuleVersionIds: ["ruleversion:reality"],
+            conflictPath: ["event:airport", "event:meeting"]
+          },
+          {
+            eventId: "event:airport",
+            sequence: 1,
+            eventType: "airport",
+            summary: "Airport departure evidence",
+            abstract: false,
+            actorIds: ["character:a"],
+            targetIds: [],
+            placeId: "place:seoul",
+            timeRelation: "before",
+            relatedStateBoundaryIds: [],
+            relatedRuleVersionIds: [],
+            conflictPath: ["event:airport", "event:meeting"]
+          }
+        ],
         eventSummaries: [
           {
             eventId: "event:airport",
@@ -184,8 +243,22 @@ describe("InspectionShell", () => {
       html.indexOf("Evidence Summary")
     );
     expect(html.indexOf("Evidence Summary")).toBeLessThan(
+      html.indexOf("Event Timeline")
+    );
+    expect(html.indexOf("Airport departure evidence")).toBeLessThan(
+      html.indexOf("Meeting arrival evidence")
+    );
+    expect(html).toContain("Show Structured Trace");
+    expect(html.indexOf("Event Timeline")).toBeLessThan(
       html.indexOf("Repair Candidates")
     );
+    expect(html.indexOf("Repair Candidates")).toBeLessThan(
+      html.indexOf("Advisory Pattern Signal")
+    );
+    expect(html).toContain(
+      "Pattern signal unavailable. Deterministic verdict still applies."
+    );
+    expect(html).toContain("Pattern signal only. Hard verdict remains deterministic.");
 
     expect(html).toContain("Rank 1");
     expect(html).toContain("finding:hard");
@@ -197,5 +270,65 @@ describe("InspectionShell", () => {
       "Auto" + "-fix"
     ];
     expect(blockedText.some((word) => html.includes(word))).toBe(false);
+  });
+
+  it("renders available advisory data as a separate pattern signal", () => {
+    const advisory: InspectionVerdictDetail["advisory"] = {
+      status: "available",
+      assessment: {
+        driftScores: {
+          transition_drift: 0.76,
+          motivation_drift: 0.2,
+          rule_exception_rarity: 0.15
+        },
+        thresholds: {
+          transition_drift: 0.6,
+          motivation_drift: 0.6,
+          rule_exception_rarity: 0.6
+        },
+        dominantPriorLayer: "baseline",
+        triggeredDrifts: ["transition_drift"],
+        representativePatternSummary: "Long-distance arrivals usually need travel setup.",
+        contributions: [
+          {
+            layer: "baseline",
+            genreKey: "baseline",
+            worldProfile: "reality-default",
+            driftType: "transition_drift",
+            sampleCount: 18,
+            confidence: 0.8,
+            appliedWeight: 1,
+            score: 0.76,
+            threshold: 0.6,
+            patternKey: "pattern:travel-setup",
+            representativePatternSummary: "Travel setup commonly precedes arrival."
+          }
+        ]
+      },
+      rerankedRepairs: [],
+      repairPlausibilityAdjustments: [
+        {
+          repairId: "repair:flight",
+          adjustment: 0.25,
+          confidence: 0.8,
+          dominantPriorLayer: "baseline",
+          representativePatternSummary: "Adding a flight is a plausible bridge."
+        }
+      ]
+    };
+
+    const html = renderToStaticMarkup(
+      createElement(SoftPriorAdvisoryBand, { advisory })
+    );
+
+    expect(html).toContain("Advisory Pattern Signal");
+    expect(html).toContain("Pattern signal only. Hard verdict remains deterministic.");
+    expect(html).toContain("transition_drift");
+    expect(html).toContain("Travel setup commonly precedes arrival.");
+    expect(html).toContain("repair:flight");
+    expect(html).not.toContain("sourceWorkIds");
+    expect(html).not.toContain("snapshotDir");
+    expect(html).not.toContain("snapshotSet");
+    expect(html).not.toContain("reality-default");
   });
 });
