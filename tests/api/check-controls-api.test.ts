@@ -5,11 +5,14 @@ import type { Pool } from "pg";
 import { buildStoryGraphApi } from "../../src/api/app.js";
 import {
   CheckIngestionResponseSchema,
+  type CheckIngestionResponse,
   ExtractSubmissionRequestSchema,
   ReviewSegmentPatchRequestSchema,
   SubmitIngestionRequestSchema
 } from "../../src/api/schemas.js";
+import type { VerdictRecord, VerdictRunRecord } from "../../src/domain/index.js";
 import { CanonicalEventSchema } from "../../src/domain/events.js";
+import type { PriorSnapshotSet } from "../../src/engine/index.js";
 import {
   applyCanonicalSchema,
   IngestionSessionRepository,
@@ -20,7 +23,9 @@ import {
   VerdictRunRepository
 } from "../../src/storage/index.js";
 import { createConfiguredIngestionLlmClient } from "../../src/services/ingestion-session.js";
+import type { SoftPriorRuntimeConfig } from "../../src/services/soft-prior-runtime.js";
 import { buildSoftPriorCheckCandidates } from "../fixtures/soft-prior-ingestion-fixtures.js";
+import { buildSoftPriorArtifactsFixture } from "../fixtures/soft-prior-fixtures.js";
 
 function createTestClient() {
   const memory = newDb({ autoCreateForeignKeyIndices: true });
@@ -64,6 +69,138 @@ function eventTokenParts(event: ReturnType<typeof CanonicalEventSchema.parse>): 
     ),
     ...effect.ruleChanges.map((change) => change.ruleVersionId)
   ]);
+}
+
+function buildApiSoftPriorSnapshotSet(): PriorSnapshotSet {
+  const fixture = buildSoftPriorArtifactsFixture();
+
+  return {
+    snapshotDir: "fixture:api-soft-prior",
+    baselineSnapshots:
+      fixture.artifacts.find((artifact) => artifact.artifact.layer === "baseline")?.artifact
+        .snapshots ?? [],
+    genreSnapshots: fixture.artifacts
+      .filter((artifact) => artifact.artifact.layer === "genre")
+      .flatMap((artifact) => artifact.artifact.snapshots)
+  };
+}
+
+function hardVerdictProjection(verdicts: VerdictRecord[]) {
+  return verdicts.map((verdict) => ({
+    verdictKind: verdict.verdictKind,
+    category: verdict.category,
+    findingId: verdict.evidence.findingId,
+    reasonCode: verdict.evidence.reasonCode,
+    eventIds: verdict.evidence.eventIds,
+    createdAt: verdict.createdAt
+  }));
+}
+
+function runMetadataProjection(runs: VerdictRunRecord[]) {
+  return runs.map((run) => ({
+    previousRunId: run.previousRunId ?? null,
+    triggerKind: run.triggerKind,
+    createdAt: run.createdAt
+  }));
+}
+
+async function runSoftPriorCheckFlow(input: {
+  softPriorConfig: SoftPriorRuntimeConfig;
+}): Promise<{
+  checked: CheckIngestionResponse;
+  persistedVerdicts: VerdictRecord[];
+  persistedRuns: VerdictRunRecord[];
+}> {
+  const created = createTestClient();
+  const pool = created.pool;
+  await applyCanonicalSchema(pool);
+  const repository = new IngestionSessionRepository(pool);
+  const storyRepository = new StoryRepository(pool);
+  const ruleRepository = new RuleRepository(pool);
+  const provenanceRepository = new ProvenanceRepository(pool);
+  const verdictRepository = new VerdictRepository(pool);
+  const verdictRunRepository = new VerdictRunRepository(pool);
+  const llmClient = createConfiguredIngestionLlmClient({
+    modelName: "test-model",
+    extractor: async ({ sessionId, segmentId }) => ({
+      candidates: buildSoftPriorCheckCandidates(sessionId, segmentId)
+    })
+  });
+  const app = buildStoryGraphApi({
+    ingestionSessionRepository: repository,
+    storyRepository,
+    ruleRepository,
+    provenanceRepository,
+    verdictRepository,
+    verdictRunRepository,
+    llmClient,
+    softPriorConfig: input.softPriorConfig,
+    generateId: () => "soft-prior-check",
+    now: () => "2026-04-10T03:30:00Z"
+  });
+
+  try {
+    const submitResponse = await app.inject({
+      method: "POST",
+      url: "/api/ingestion/submissions",
+      payload: {
+        submissionKind: "chunk",
+        text: "The mage casts a gate spell in the ruins and arrives at the castle instantly.",
+        draftTitle: "Soft Prior Draft",
+        defaultRulePackName: "fantasy-light"
+      }
+    });
+    expect(submitResponse.statusCode).toBe(201);
+    const submitted = submitResponse.json();
+    const segmentId = submitted.segments[0].segmentId;
+
+    const extractResponse = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/extract`,
+      payload: {}
+    });
+    expect(extractResponse.statusCode).toBe(200);
+
+    const patchResponse = await app.inject({
+      method: "PATCH",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/segments/${segmentId}`,
+      payload: {
+        boundary: {
+          label: "Soft Prior Scene"
+        }
+      }
+    });
+    expect(patchResponse.statusCode).toBe(200);
+    expect(patchResponse.json().segments[0].label).toBe("Soft Prior Scene");
+
+    const approveResponse = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/segments/${segmentId}/approve`
+    });
+    expect(approveResponse.statusCode).toBe(200);
+    expect(approveResponse.json().workflowState).toBe("approved");
+
+    const checkResponse = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/check`
+    });
+    expect(checkResponse.statusCode).toBe(200);
+    const checked = CheckIngestionResponseSchema.parse(checkResponse.json());
+    const persistedVerdicts = await verdictRepository.listForRun(checked.runId);
+    const persistedRuns = await verdictRunRepository.listRunsForRevision(
+      checked.storyId,
+      checked.revisionId
+    );
+
+    return {
+      checked,
+      persistedVerdicts,
+      persistedRuns
+    };
+  } finally {
+    await app.close();
+    await pool.end();
+  }
 }
 
 describe("ingestion check controls api", () => {
@@ -229,6 +366,66 @@ describe("ingestion check controls api", () => {
     expect(await countVerdictRuns(pool)).toBe(1);
 
     await app.close();
+  });
+
+  it("returns available soft-prior advisory output without mutating hard verdicts through submit extract review approve check", async () => {
+    const snapshotSet = buildApiSoftPriorSnapshotSet();
+    const disabled = await runSoftPriorCheckFlow({
+      softPriorConfig: { enabled: false }
+    });
+    const enabled = await runSoftPriorCheckFlow({
+      softPriorConfig: {
+        enabled: true,
+        snapshotSet,
+        genreWeights: [
+          { genreKey: "fantasy", weight: 0.8 },
+          { genreKey: "adventure", weight: 0.2 }
+        ],
+        worldProfile: "fantasy-light"
+      }
+    });
+
+    expect(enabled.checked).toMatchObject({
+      sessionId: "session:soft-prior-check",
+      workflowState: "checked",
+      storyId: "story:draft:session:soft-prior-check",
+      revisionId: "revision:draft:session:soft-prior-check",
+      previousRunId: null
+    });
+    expect(enabled.checked.runId).toContain("run:");
+    expect(enabled.checked.softPrior.status).toBe("available");
+
+    if (enabled.checked.softPrior.status !== "available") {
+      throw new Error("Expected available soft-prior advisory output.");
+    }
+
+    expect(enabled.checked.softPrior.assessment.driftScores.transition_drift).toEqual(
+      expect.any(Number)
+    );
+    expect(enabled.checked.softPrior.assessment.thresholds.transition_drift).toEqual(
+      expect.any(Number)
+    );
+    expect(enabled.checked.softPrior.assessment.triggeredDrifts.length).toBeGreaterThan(0);
+    expect(enabled.checked.softPrior.assessment.dominantPriorLayer).toBeDefined();
+    expect(enabled.checked.softPrior.assessment.representativePatternSummary).toEqual(
+      expect.any(String)
+    );
+    expect(enabled.checked.softPrior.assessment.contributions.length).toBeGreaterThan(0);
+    expect(enabled.checked.softPrior.rerankedRepairs.length).toBeGreaterThan(0);
+    expect(enabled.checked.softPrior.repairPlausibilityAdjustments.length).toBeGreaterThan(0);
+
+    expect(disabled.checked.softPrior.status).toBe("disabled");
+    expect(hardVerdictProjection(enabled.persistedVerdicts)).toEqual(
+      hardVerdictProjection(disabled.persistedVerdicts)
+    );
+    expect(runMetadataProjection(enabled.persistedRuns)).toEqual(
+      runMetadataProjection(disabled.persistedRuns)
+    );
+    expect(
+      hardVerdictProjection(enabled.persistedVerdicts).some(
+        (verdict) => verdict.verdictKind === "Hard Contradiction"
+      )
+    ).toBe(true);
   });
 
   it("preserves soft-prior advisory responses without accepting request prior config fields", () => {
