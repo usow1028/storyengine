@@ -1,221 +1,99 @@
-# Architecture Research
+# Architecture Research: v1.1 Draft Scale
 
-**Domain:** story consistency engine / computational narrative reasoning
-**Researched:** 2026-04-09
-**Confidence:** MEDIUM-HIGH
+## Current Architecture
 
-## Standard Architecture
+The current system has clear layers:
 
-### System Overview
+- Domain schemas in `src/domain`.
+- Storage migrations and repositories in `src/storage`.
+- Ingestion services in `src/services/ingestion-*`.
+- Deterministic checks and repair logic in `src/engine`.
+- Fastify routes in `src/api/routes`.
+- Browser inspection in `src/ui`.
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                  Authoring / Input Layer                    │
-├─────────────────────────────────────────────────────────────┤
-│  Natural language input   Structured cards   Rule editor    │
-└──────────────┬─────────────────────┬────────────────────────┘
-               │                     │
-┌──────────────┴─────────────────────┴────────────────────────┐
-│            Extraction / Normalization Layer                │
-├─────────────────────────────────────────────────────────────┤
-│  entity extraction   event parsing   schema validation      │
-└──────────────┬─────────────────────┬────────────────────────┘
-               │                     │
-┌──────────────┴─────────────────────┴────────────────────────┐
-│               Canonical Narrative Model                     │
-├─────────────────────────────────────────────────────────────┤
-│  characters   states   events   causal links   world rules  │
-│  violations   repairs  provenance                              │
-└──────────────┬─────────────────────┬────────────────────────┘
-               │                     │
-┌──────────────┴───────────────┐   ┌──────────────────────────┐
-│   Symbolic Reasoning Layer   │   │   Statistical Layer      │
-├──────────────────────────────┤   ├──────────────────────────┤
-│ hard constraints / ASP / SMT │   │ corpus priors / retrieval│
-│ temporal + causal checking   │   │ soft drift ranking       │
-└──────────────┬───────────────┘   └──────────────┬───────────┘
-               │                                  │
-┌──────────────┴──────────────────────────────────┴───────────┐
-│                 Verdict / Review Layer                      │
-├─────────────────────────────────────────────────────────────┤
-│ hard contradiction   repairable gap   soft drift   coherent │
-│ evidence trace       repair candidates  inspection views    │
-└─────────────────────────────────────────────────────────────┘
-```
+v1.1 should preserve this layering. Draft-scale behavior belongs mostly in domain, storage, services, API contracts, and inspection DTO shaping.
 
-### Component Responsibilities
+## Proposed Shape
 
-| Component | Responsibility | Typical Implementation |
-|-----------|----------------|------------------------|
-| Input/authoring | Accept synopsis, scene descriptions, or rule edits | API + simple text UI or web form |
-| Normalizer | Convert raw prose into canonical objects | LLM-assisted extraction + schema validation |
-| Canonical store | Persist events, states, rules, verdicts, and provenance | PostgreSQL with relational tables + `jsonb` |
-| Hard reasoning engine | Evaluate satisfiability, constraints, and direct contradictions | ASP/clingo first, optional SMT for numeric cases |
-| Repair engine | Generate minimal assumptions or prior events needed to restore coherence | Abductive reasoning over the same canonical model |
-| Soft prior engine | Rank likely repairs and detect softer narrative drift | Corpus statistics + retrieval + weighted rules |
-| Review surface | Present verdicts, evidence, and corrections | API-first, later timeline/graph UI |
+### Draft Scope Layer
 
-## Recommended Project Structure
+Add a draft scope model that can represent:
 
-```text
-src/
-├── domain/             # Canonical schemas, enums, taxonomy IDs
-│   ├── character/      # Character state and relation models
-│   ├── event/          # Event and transition models
-│   ├── rule/           # World rule and verdict models
-│   └── ids.ts          # Stable REQ / violation / rule identifiers
-├── ingest/             # Natural language extraction and normalization
-├── reasoning/
-│   ├── hard/           # Constraint encoding and hard checks
-│   ├── repair/         # Abductive repair generation
-│   ├── soft/           # Pattern priors and ranking
-│   └── explain/        # Evidence trace formatting
-├── storage/            # Postgres, DuckDB, and retrieval adapters
-├── api/                # HTTP or RPC surface
-├── ui/                 # Later inspection UI
-└── tests/              # Fixtures for rules, stories, and regressions
+- Document or draft container.
+- Revision lineage.
+- Chapter or section identity.
+- Segment ranges.
+- Check scope.
+- Diff scope.
 
-rules/
-├── hard/               # Executable logic rules
-├── soft/               # Weighted priors or templates
-└── taxonomies/         # Violation and repair taxonomies
+This should be a domain-level contract, not route-only request metadata. The checker and inspection layers need the same scope values for traceability.
 
-corpus/
-├── raw/                # Imported public/reference narratives
-├── extracted/          # Derived event/state datasets
-└── analytics/          # DuckDB queries and reports
-```
+### Ingestion Extension
 
-### Structure Rationale
+Extend the existing ingestion flow rather than replacing it:
 
-- **`domain/`**: keeps the engine’s language explicit and independent from transport or UI code.
-- **`reasoning/`**: separates hard contradictions, repairs, and soft priors so they do not collapse into one opaque score.
-- **`rules/`**: stores executable logic and taxonomies as versioned assets instead of burying them inside prompt text.
-- **`corpus/`**: keeps pattern mining reproducible and distinct from online verdict serving.
+- `submitIngestionSession` should create a deterministic draft segment plan with document/revision metadata.
+- `extractIngestionSession` should allow selected segment extraction and persist segment-level errors.
+- `approveReviewedSegment` should keep promotion idempotent and provenance-preserving.
+- Session state should distinguish submitted, extracting, partially extracted, needs review, partially approved, approved, checked, and failed segments.
 
-## Architectural Patterns
+### Check Execution
 
-### Pattern 1: State-Transition Narrative Model
+`executeIngestionCheck` currently requires the full session to be approved. v1.1 should add scoped checks:
 
-**What:** Stories are represented as state snapshots and transitions rather than as prose blobs.
-**When to use:** Always, if the goal is consistency judgment instead of pure generation.
-**Trade-offs:** More modeling effort up front, but much better auditability and rerunnability.
+- Approved full draft.
+- Approved chapter.
+- Approved segment range.
+- Revision comparison.
 
-**Example:**
-```typescript
-type Event = {
-  id: string;
-  actorIds: string[];
-  timeRef: string;
-  locationId: string;
-  preconditions: string[];
-  effects: string[];
-};
-```
+The check runner should still receive a canonical `storyId` and `revisionId`, but the run record and inspection snapshot need scope metadata so output cannot be misread.
 
-### Pattern 2: Hybrid Symbolic + LLM Pipeline
+### Revision Diff
 
-**What:** Use LLMs to extract or explain, but keep final judgment in explicit logic.
-**When to use:** Whenever users want natural-language authoring without sacrificing deterministic checks.
-**Trade-offs:** Requires careful boundary validation; otherwise extraction mistakes contaminate reasoning.
+Existing `diffAgainstPreviousRun` fingerprints findings by checker, reason code, category, and evidence IDs. v1.1 should add:
 
-**Example:**
-```typescript
-rawText -> llmExtraction -> zodValidation -> canonicalModel -> symbolicCheck
-```
+- Revision pair metadata.
+- Scope identity.
+- Source segment labels.
+- Changed canonical entities/events/rules when available.
 
-### Pattern 3: Dual-Layer Verdicting
+The first implementation can compare verdict runs, then layer revision-aware labels on top.
 
-**What:** Hard contradictions and soft narrative drift are handled by different engines.
-**When to use:** When “impossible” and “unlikely/awkward” must be separated cleanly.
-**Trade-offs:** More components, but avoids the common anti-pattern of mixing logic failure with stylistic preference.
+### Inspection
 
-## Data Flow
+The inspection payload should support larger runs by adding:
 
-### Request Flow
+- Scope summary.
+- Segment/chapter grouping.
+- Review-state summary.
+- Filterable counts by verdict kind, entity, rule, and segment.
+- Source span references for each verdict detail.
 
-```text
-[Author Input]
-    ↓
-[Normalizer] → [Schema Validation] → [Canonical Store]
-    ↓                              ↓
-[Hard Checker] → [Repair Engine] → [Soft Prior Layer]
-    ↓
-[Verdict + Evidence + Suggested Fixes]
-```
+The UI should remain a browser inspection console, not a visualization-heavy editor.
 
-### State Management
+## Phase Candidates
 
-```text
-[Story Draft]
-    ↓
-[Canonical model revision]
-    ↓
-[Versioned verdict run]
-    ↓
-[Violation and repair records]
-```
-
-### Key Data Flows
-
-1. **Authoring flow:** prose or scene note → extracted objects → user correction → stored canonical model.
-2. **Reasoning flow:** canonical model → hard-rule check → repair generation → soft-prior ranking.
-3. **Research flow:** corpus text → extracted event/state dataset → DuckDB analysis → weighted priors and rule candidates.
-
-## Scaling Considerations
-
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| 0-1k stories/projects | Single service + PostgreSQL + local DuckDB is sufficient |
-| 1k-100k stories/projects | Split extraction jobs from verdict serving, add async queues and caching |
-| 100k+ stories/projects | Separate corpus analytics, retrieval, and serving layers; consider graph projection and job orchestration |
-
-### Scaling Priorities
-
-1. **First bottleneck:** extraction and re-check throughput — solve with queued normalization and cached canonical revisions.
-2. **Second bottleneck:** soft-prior retrieval and corpus analytics — solve with precomputed embeddings and offline batch pipelines.
-
-## Anti-Patterns
-
-### Anti-Pattern 1: Prompt-As-Architecture
-
-**What people do:** Put all story judgment into one giant LLM prompt.
-**Why it's wrong:** Hard to reproduce, hard to test, and impossible to audit cleanly.
-**Do this instead:** Persist canonical objects and run explicit rule packs against them.
-
-### Anti-Pattern 2: Prose-Only Storage
-
-**What people do:** Store just the manuscript or synopsis and infer everything on the fly.
-**Why it's wrong:** Each run can disagree with previous runs, and provenance disappears.
-**Do this instead:** Version the normalized representation and tie each verdict to that version.
+1. Draft container and segment-scope model.
+2. Incremental extraction and review resilience.
+3. Scoped checks and revision diff.
+4. Large-run inspection and operational guardrails.
 
 ## Integration Points
 
-### External Services
+- `src/domain/ingestion.ts`: extend session, segment, and workflow schemas.
+- `src/domain/inspection.ts`: add scope and source-span fields.
+- `src/storage/migrations`: add draft/revision/scope/job metadata.
+- `src/storage/repositories/ingestion-session-repository.ts`: persist new metadata and segment states.
+- `src/services/ingestion-session.ts`: segment planning, selected extraction, retry state.
+- `src/services/ingestion-check.ts`: scoped check validation and run metadata.
+- `src/services/verdict-diff.ts`: revision-aware diff labels.
+- `src/api/schemas.ts` and route files: expose stable request/response contracts.
+- `src/ui/components`: add filters and scope summaries only after API shape is stable.
 
-| Service | Integration Pattern | Notes |
-|---------|---------------------|-------|
-| LLM provider | structured extraction + explanation assistance | Keep post-validation mandatory |
-| PostgreSQL | canonical operational store | Use strong schema plus `jsonb` only where flexibility is needed |
-| DuckDB | offline analytics | Best for batch corpus mining, not primary transactional serving |
-| Optional graph projection | read-oriented exploration | Add only after canonical schema stabilizes |
+## Architectural Constraints
 
-### Internal Boundaries
-
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| `ingest ↔ domain` | validated typed objects | No raw prompt text should cross this boundary unvalidated |
-| `domain ↔ reasoning` | canonical model snapshot | Reasoning should operate on stable, versioned inputs |
-| `reasoning ↔ ui` | verdict DTOs with evidence | UI should not recompute logic itself |
-
-## Sources
-
-- https://www.postgresql.org/docs/18/datatype-json.html
-- https://neo4j.com/docs/getting-started/data-modeling/
-- https://potassco.org/
-- https://arxiv.org/abs/2503.23512
-- https://arxiv.org/abs/2603.05890
-
----
-*Architecture research for: story consistency engine*
-*Researched: 2026-04-09*
+- Deterministic verdicts remain logic-led.
+- LLM extraction output must pass Zod validation before promotion.
+- Partial approval cannot silently modify unapproved canonical graph state.
+- Inspection output must redact raw storage-only fields and expose explicit trace fields.
+- Soft-prior advisory output must remain separate from hard verdict truth.

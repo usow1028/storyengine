@@ -1,180 +1,71 @@
-# Pitfalls Research
+# Pitfalls Research: v1.1 Draft Scale
 
-**Domain:** story consistency engine / computational narrative reasoning
-**Researched:** 2026-04-09
-**Confidence:** HIGH
+## Pitfall 1: Blob-Scale Ingestion
 
-## Critical Pitfalls
+If v1.1 treats a chapter as one large text blob, review and traceability will degrade. Segment boundaries must be first-class and deterministic enough that verdicts can point back to stable source spans.
 
-### Pitfall 1: Treating Corpus Frequency as Logical Truth
+Mitigation:
 
-**What goes wrong:**
-Common narrative patterns get promoted into hard rules, so rare but coherent stories are mislabeled as invalid.
+- Store ordered document/chapter/segment metadata.
+- Keep offsets and labels through extraction, correction, promotion, verdicts, and inspection.
+- Test segmentation stability with headings, blank lines, and long paragraphs.
 
-**Why it happens:**
-Teams conflate “often observed” with “must be true.”
+## Pitfall 2: Premature Canonical Promotion
 
-**How to avoid:**
-Separate hard constraints from weighted priors at the storage and solver layers.
+Approving one segment must not imply all extracted candidates are safe. A failed or uncertain later segment should not corrupt canonical state or unlock a misleading full-draft check.
 
-**Warning signs:**
-Soft narrative tendencies start appearing in “impossible” verdicts.
+Mitigation:
 
-**Phase to address:**
-Phase 4
+- Require explicit approved scope for checks.
+- Track partial approval separately from full approval.
+- Keep promotion idempotent and provenance-backed.
 
----
+## Pitfall 3: Misleading Revision Diffs
 
-### Pitfall 2: Letting the LLM Be the Final Judge
+Diffing two runs without scope and revision metadata can make findings look resolved or new when the checked text range simply changed.
 
-**What goes wrong:**
-Verdicts become unstable and difficult to reproduce.
+Mitigation:
 
-**Why it happens:**
-LLM outputs are attractive because they are fast and fluent.
+- Persist check scope on verdict runs or inspection snapshots.
+- Include revision pair and segment range in diff output.
+- Label out-of-scope findings separately from resolved findings.
 
-**How to avoid:**
-Use LLMs only for extraction, explanation, and candidate generation; keep final verdict logic explicit and testable.
+## Pitfall 4: Hidden Batch Failures
 
-**Warning signs:**
-Small wording changes produce different contradiction classes for the same underlying story.
+Batch extraction over many segments can partially fail. If failure state is not explicit, users will assume the draft was fully analyzed.
 
-**Phase to address:**
-Phase 2
+Mitigation:
 
----
+- Persist per-segment extraction status and error summaries.
+- Allow retry for failed or stale segments.
+- Keep check execution blocked or scoped when unresolved segments remain.
 
-### Pitfall 3: No Explicit State Snapshots
+## Pitfall 5: Inspection Overload
 
-**What goes wrong:**
-Character drift, knowledge contradictions, and resource/location conflicts cannot be judged consistently.
+A chapter can produce many findings. A single flat verdict list will become noisy.
 
-**Why it happens:**
-Teams store events only and assume state can always be reconstructed implicitly.
+Mitigation:
 
-**How to avoid:**
-Persist state deltas and reconstructable snapshots tied to each event boundary.
+- Add grouping and filtering before adding more visual complexity.
+- Preserve the existing fixed verdict-kind ordering.
+- Add source-scope summaries and counts.
 
-**Warning signs:**
-You can explain a contradiction in prose, but cannot point to the exact state before and after the offending event.
+## Pitfall 6: Advisory Priors Becoming Law
 
-**Phase to address:**
-Phase 1
+Corpus priors are useful for repair ordering, but draft-scale workflows can make pattern frequency feel authoritative.
 
----
+Mitigation:
 
-### Pitfall 4: World Rules Are Notes, Not Executable Constraints
+- Keep advisory copy and schema separate from hard verdict fields.
+- Test that prior availability changes repair order or annotations only, not verdict kind.
+- Surface unavailable or insufficient-prior states clearly.
 
-**What goes wrong:**
-Fantasy or SF exceptions exist in documentation but are not enforced during checking.
+## Pitfall 7: Too Much Product Surface
 
-**Why it happens:**
-Worldbuilding gets stored as lore text rather than executable rule data.
+Collaboration, export, editor integration, real-time checks, and format packs are all plausible future directions. Adding them in v1.1 would dilute the core scale problem.
 
-**How to avoid:**
-Represent every operative exception as a versioned rule object the checker can evaluate.
+Mitigation:
 
-**Warning signs:**
-Reviewers keep saying “this should be allowed in this world” but the engine has no formal way to know why.
-
-**Phase to address:**
-Phase 2
-
----
-
-### Pitfall 5: Verdicts Without Provenance
-
-**What goes wrong:**
-Writers cannot trust or fix judgments because the engine cannot show where they came from.
-
-**Why it happens:**
-Systems optimize for score display before evidence storage.
-
-**How to avoid:**
-Persist evidence spans, referenced states, violated rules, and candidate repairs with every verdict.
-
-**Warning signs:**
-The engine can say “inconsistent,” but cannot quote the linked events or state assumptions that produced the verdict.
-
-**Phase to address:**
-Phase 3
-
-## Technical Debt Patterns
-
-| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
-|----------|-------------------|----------------|-----------------|
-| Storing rule payloads only as freeform JSON | Fast iteration | Taxonomy drift and query pain | Acceptable only in prototype spikes with a migration plan |
-| Using a single verdict enum for all failure types | Simpler API | Loses actionability and analytical value | Never, if repair guidance matters |
-| Manual corpus tagging only | Quick start | Does not scale and creates taxonomy inconsistency | Acceptable for seed datasets only |
-| Building UI first | Visible progress | Logic debt hidden behind polish | Never for this project’s first milestone |
-
-## Integration Gotchas
-
-| Integration | Common Mistake | Correct Approach |
-|-------------|----------------|------------------|
-| LLM extraction | Trusting raw JSON from the model | Validate against strict schemas and preserve extraction confidence |
-| PostgreSQL + `jsonb` | Putting everything into giant blobs | Normalize stable entities and keep flexible annotations in `jsonb` only where needed |
-| DuckDB corpus analysis | Treating offline counts as live truth | Export weighted priors deliberately and version them |
-| Optional graph layer | Duplicating business truth | Use graph projection as a read model, not the source of truth |
-
-## Performance Traps
-
-| Trap | Symptoms | Prevention | When It Breaks |
-|------|----------|------------|----------------|
-| Re-running full extraction on every edit | Slow author feedback | Version normalized fragments and re-check incrementally | Breaks once drafts or scenes grow large |
-| Monolithic all-rules-at-once reasoning | Solver latency spikes | Partition rule packs by verdict family and story segment | Breaks when rule inventory grows materially |
-| Corpus mining in the serving path | Verdict latency becomes erratic | Keep heavy mining offline and ship compact priors | Breaks as soon as corpus size becomes significant |
-
-## Security Mistakes
-
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| Prompt injection from imported manuscripts or notes | Extraction and explanation layers can be steered into bogus structure | Treat imported text as untrusted input and keep schema validation mandatory |
-| Unversioned rule edits | Silent behavior changes in verdicts | Version rule packs and attach rule-set IDs to every verdict |
-| Mixing user-private drafts with shared corpus mining naively | Data leakage | Separate private operational data from research corpora and require explicit opt-in |
-
-## UX Pitfalls
-
-| Pitfall | User Impact | Better Approach |
-|---------|-------------|-----------------|
-| Showing only a red/green result | Writers cannot revise effectively | Show violation class, evidence, and repair path |
-| Forcing users to author structured JSON manually | High friction and abandonment | Allow natural language input and structured correction only when needed |
-| Hiding uncertainty | Users over-trust weak verdicts | Distinguish hard contradiction, repairable gap, and soft drift clearly |
-
-## "Looks Done But Isn't" Checklist
-
-- [ ] **Hard checker:** Often missing explicit time and travel constraints — verify cross-location impossibility cases.
-- [ ] **Character coherence:** Often missing knowledge-state and motive-state transitions — verify betrayal and secrecy cases.
-- [ ] **World-rule system:** Often missing versioned overrides — verify a fantasy/SF exception can be declared and rechecked.
-- [ ] **Verdict storage:** Often missing provenance — verify every violation links to exact rules and source events.
-
-## Recovery Strategies
-
-| Pitfall | Recovery Cost | Recovery Steps |
-|---------|---------------|----------------|
-| Corpus priors treated as hard rules | HIGH | Split rulesets, relabel verdicts, re-run regression fixtures |
-| Prose-only storage | HIGH | Introduce canonical model migration and backfill extracted structure |
-| Missing provenance | MEDIUM | Add verdict audit tables and rerun checks on saved story versions |
-| UI-first drift | MEDIUM | Freeze UI work and complete the canonical model and rule engine first |
-
-## Pitfall-to-Phase Mapping
-
-| Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| No explicit state snapshots | Phase 1 | State before/after each event can be reconstructed |
-| LLM as final judge | Phase 2 | Same story produces stable hard-verdict outputs across reruns |
-| World rules not executable | Phase 2 | User rule overrides change verdicts deterministically |
-| Verdicts without provenance | Phase 3 | Every violation cites rules, states, and source spans |
-| Corpus frequency becomes law | Phase 4 | Soft priors never appear as hard contradictions |
-
-## Sources
-
-- https://arxiv.org/abs/2503.23512
-- https://arxiv.org/abs/2603.05890
-- https://arxiv.org/abs/2508.09848
-- https://potassco.org/
-- https://www.postgresql.org/docs/18/datatype-json.html
-
----
-*Pitfalls research for: story consistency engine*
-*Researched: 2026-04-09*
+- Keep v1.1 focused on single-writer draft-scale analysis.
+- Defer sharing, permissions, export, and live editor UX.
+- Use the browser inspection surface only where it proves larger-run triage.

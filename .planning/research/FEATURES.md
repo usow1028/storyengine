@@ -1,125 +1,61 @@
-# Feature Research
+# Feature Research: v1.1 Draft Scale
 
-**Domain:** story consistency engine / computational narrative reasoning
-**Researched:** 2026-04-09
-**Confidence:** MEDIUM
+## Product Direction
 
-## Feature Landscape
+v1.1 should turn the v1.0 consistency loop into a chapter-scale drafting workflow:
 
-### Table Stakes (Users Expect These)
+1. A writer submits a chapter or ordered draft excerpt.
+2. StoryGraph creates a deterministic segment plan.
+3. Extraction runs segment by segment.
+4. The writer reviews and approves structured candidates incrementally.
+5. Checks run against approved scope.
+6. Revision diffs explain what became newly inconsistent, resolved, or unchanged.
 
-Features users assume exist. Missing these = product feels incomplete.
+This is the most direct next milestone because v1.0 already proved the canonical graph, hard checks, soft-prior advisory layer, natural-language review path, and inspection surface. The next risk is scale and continuity, not collaboration or export.
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| Canonical event/state/world-rule model | Without an explicit model, consistency checks become hand-wavy | HIGH | The product needs normalized storage for characters, events, constraints, and state transitions |
-| Hard consistency verdicts | Users expect the engine to say what is impossible, not just what feels weak | HIGH | Must cover time, space, causality, physical possibility, and character-state conflicts |
-| Explainable evidence trace | Writers need to know exactly why a verdict happened | MEDIUM | Every violation should point to the relevant states, events, and rules |
-| Repair suggestions | A useful engine should indicate how to make a broken story coherent | HIGH | This is where abductive reasoning becomes product value instead of raw diagnosis only |
-| World-rule authoring | Realism-default alone is not enough for fantasy, SF, or alternate-history stories | MEDIUM | Users need an explicit way to add or override rules |
-| Iterative re-check workflow | Writers revise stories repeatedly | MEDIUM | Verdicts must be rerunnable after edits without rebuilding everything from scratch |
+## Core User Outcomes
 
-### Differentiators (Competitive Advantage)
+Writers should be able to:
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| Hybrid hard + soft reasoning | Separates true contradiction from soft narrative drift | HIGH | Stronger than tools that only offer vague critique |
-| Minimal repair set generation | Shows the smallest explanation set needed to restore coherence | HIGH | Important for actionable revision rather than generic advice |
-| Corpus-backed priors | Learns common event and character patterns without turning them into laws | HIGH | Useful for soft warnings, repair ranking, and narrative pattern discovery |
-| Automatic structure extraction from natural language | Lets writers keep freeform authoring while the engine stays structured inside | HIGH | Needs LLM extraction plus user correction loop |
-| Timeline/graph inspection of narrative state | Makes abstract inconsistency visible | MEDIUM | Strong visualization value once the reasoning core is trustworthy |
+- Submit chapter-scale text without manually splitting it into structured events.
+- See how the draft was segmented before approving extracted structure.
+- Review extracted entities, events, state boundaries, causal links, and rules by segment.
+- Approve safe segments while leaving uncertain segments unresolved.
+- Run consistency checks only for approved draft scope.
+- Compare a new draft revision against a previous revision or previous check run.
+- Inspect verdicts without losing the source text span that produced each finding.
 
-### Anti-Features (Commonly Requested, Often Problematic)
+## Table Stakes
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| One global “story quality” score | Feels simple and marketable | Hides whether the problem is physics, motive, timing, or world rules | Use typed verdict classes plus optional derived score |
-| Style-polishing as a core feature | Writers often ask for prose improvement | Distracts from the product’s main value and muddies evaluation with aesthetics | Keep style tooling separate from consistency reasoning |
-| Fully autonomous story generation | Sounds impressive | Turns the engine into a general writing assistant instead of a reasoning system | Let generation remain a later, optional helper around the engine |
-| Early 3D visualization | Feels innovative | Adds UI cost before the logic model is stable | Start with structured reports and 2D graph/timeline inspection |
+- Segment labels and order must be stable.
+- Source offsets must survive extraction, correction, approval, promotion, check, and inspection.
+- Partial approval must not mark the whole session safe to check.
+- Scope selection must be explicit: full approved draft, chapter, segment range, or revision pair.
+- Diffs must distinguish added, resolved, persisted, and changed findings.
+- Advisory soft priors must stay advisory and never change hard verdict truth.
 
-## Feature Dependencies
+## Differentiators
 
-```text
-Canonical model
-    └──requires──> rule schema
-                       └──requires──> verdict taxonomy
+- StoryGraph can show why a full chapter is inconsistent through structured trace fields, not generic comments.
+- Writers can approve the canonical interpretation before the engine judges it.
+- Revision diffing can explain whether an edit fixed a contradiction or merely moved it.
+- Larger-run inspection can group by severity, chapter, segment, entity, rule, and unresolved review state.
 
-Hard checker
-    └──enables──> repair engine
-                       └──enhanced by──> corpus priors
+## Anti-Features
 
-Natural-language ingestion
-    └──requires──> canonical model
+Do not add these to v1.1:
 
-Visualization
-    └──requires──> canonical model + violation store
-```
+- Multi-user collaboration.
+- Export to screenplay, novel, or outline formats.
+- Real-time checking while typing.
+- Automatic rewrite generation.
+- Style scoring or prose quality feedback.
+- Background manuscript ingestion that hides segment-level review state.
 
-### Dependency Notes
+## Success Criteria
 
-- **Repair engine requires hard checker:** you cannot suggest minimal repairs until the system can state what currently fails.
-- **Natural-language ingestion requires canonical model:** extraction quality is impossible to validate if the target schema is unstable.
-- **Corpus priors enhance repair ranking:** they help prioritize plausible fixes, but should not define logical validity.
-- **Visualization depends on stored reasoning artifacts:** a graph view is only useful if it reflects explicit states, links, and violations.
-
-## MVP Definition
-
-### Launch With (v1)
-
-- [ ] Canonical schema for characters, events, states, rules, and verdicts — required for every later layer
-- [ ] Hard consistency checker — core product promise
-- [ ] Typed violation taxonomy with evidence trace — required for explanation
-- [ ] Minimal repair suggestion engine — turns diagnosis into revision support
-- [ ] Reality-default plus user-authored world rules — required for domain flexibility
-
-### Add After Validation (v1.x)
-
-- [ ] Natural-language extraction with human correction loop — add once the canonical schema is stable
-- [ ] Analyst-facing inspection UI — add once verdicts are trustworthy enough to visualize
-- [ ] Similar-case retrieval from prior stories and examples — add once pattern DB exists
-
-### Future Consideration (v2+)
-
-- [ ] Full-manuscript ingestion across chapter-scale text — defer until extraction robustness improves
-- [ ] Multi-user annotation and collaborative review — defer until the solo workflow is stable
-- [ ] Format-specific packs for screenplays, plays, and novels — defer until generic consistency logic proves reusable
-
-## Feature Prioritization Matrix
-
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| Canonical narrative schema | HIGH | HIGH | P1 |
-| Hard contradiction checker | HIGH | HIGH | P1 |
-| Evidence-backed verdicts | HIGH | MEDIUM | P1 |
-| Repair suggestion engine | HIGH | HIGH | P1 |
-| World-rule editor | HIGH | MEDIUM | P1 |
-| Natural-language auto-structuring | HIGH | HIGH | P2 |
-| Corpus-backed priors | MEDIUM | HIGH | P2 |
-| Visualization layer | MEDIUM | MEDIUM | P2 |
-| Full-manuscript ingestion | MEDIUM | HIGH | P3 |
-
-**Priority key:**
-- P1: Must have for launch
-- P2: Should have, add when possible
-- P3: Nice to have, future consideration
-
-## Competitor Feature Analysis
-
-| Feature | Competitor A | Competitor B | Our Approach |
-|---------|--------------|--------------|--------------|
-| Plot/timeline planning | Plotting tools often model events and chronology manually | Timeline tools focus on ordering, not formal consistency | Treat chronology as one layer inside a larger event-state-rule system |
-| AI writing assistance | LLM tools generate or critique prose fluidly | They often lack deterministic state tracking | Keep LLMs for extraction and explanation, not the final verdict authority |
-| Character tracking | Many tools rely on notes or manual profiles | Most do not check behavior against declared state and motive | Represent character state transitions explicitly and judge drift against them |
-| World-building rules | Worldbuilding apps store lore | They rarely enforce those rules during plot evaluation | Store rules as executable constraints, not passive notes |
-
-## Sources
-
-- Plotting/timeline tool patterns across the writing-tool ecosystem
-- https://arxiv.org/abs/2503.23512 — narrative consistency repair as an explicit product need
-- https://arxiv.org/abs/2603.05890 — long-context story consistency taxonomy and checker framing
-- https://arxiv.org/abs/2508.09848 — current limits of long-context consistency judgment
-
----
-*Feature research for: story consistency engine*
-*Researched: 2026-04-09*
+- A multi-segment full-draft submission can be extracted, reviewed, partially approved, fully approved, checked, and inspected.
+- A second revision can be submitted and compared against the prior revision or prior verdict run.
+- Check output clearly identifies selected scope and source provenance.
+- Large-run UI/API responses remain structured and triageable.
+- Tests cover happy path, partial approval, failed segment extraction, rerun, and revision diff.
