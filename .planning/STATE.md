@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: MVP
-status: completed
-stopped_at: v1.0 milestone archived
-last_updated: "2026-04-10T20:00:59+09:00"
-last_activity: 2026-04-10 -- v1.0 MVP archived
+milestone: v1.1
+milestone_name: Draft Scale
+status: defining_requirements
+stopped_at: v1.1 milestone started
+last_updated: "2026-04-10T20:10:42+09:00"
+last_activity: 2026-04-10 -- v1.1 Draft Scale started
 progress:
-  total_phases: 8
-  completed_phases: 8
-  total_plans: 25
-  completed_plans: 25
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-10)
 
 **Core value:** Writers must be able to see exactly why a story is coherent or incoherent, and what explanation or prior condition would repair it.
-**Current focus:** Planning next milestone
+**Current focus:** v1.1 Draft Scale requirements and roadmap
 
 ## Current Position
 
 Phase: No active phase
-Plan: Start next milestone
-Status: v1.0 MVP archived
-Last activity: 2026-04-10 -- v1.0 MVP archived
+Plan: Define v1.1 requirements and roadmap
+Status: v1.1 milestone started
+Last activity: 2026-04-10 -- v1.1 Draft Scale started
 
-Progress: [██████████] 100%
+Progress: [----------] 0%
 
 ## Performance Metrics
 
@@ -86,7 +86,8 @@ Progress: [██████████] 100%
 
 ### Pending Todos
 
-None yet.
+- Define v1.1 requirements for chapter-scale draft ingestion, incremental review, scoped checks, revision diffs, and inspection scale.
+- Create v1.1 roadmap phases starting after the completed v1.0 phase sequence.
 
 ### Blockers/Concerns
 
@@ -94,6 +95,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-10T20:00:59+09:00
-Stopped at: v1.0 milestone archived
-Resume file: .planning/MILESTONES.md
+Last session: 2026-04-10T20:10:42+09:00
+Stopped at: v1.1 milestone started
+Resume file: .planning/ROADMAP.md

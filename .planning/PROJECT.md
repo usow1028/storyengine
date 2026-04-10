@@ -20,8 +20,8 @@ Writers must be able to see exactly why a story is coherent or incoherent, and w
 
 ### Active
 
-- [ ] Define the next milestone requirements with `/gsd-new-milestone`.
-- [ ] Decide whether v1.1 should prioritize full-draft ingestion, collaboration, format packs, or deeper inspection workflows.
+- [ ] v1.1 Draft Scale: analyze chapter-scale draft text through ordered ingestion, incremental review, scoped checks, and revision diffs.
+- [ ] Preserve deterministic verdict truth, evidence traceability, and advisory-prior boundaries across larger draft workflows.
 
 ### Out of Scope
 
@@ -36,7 +36,7 @@ The project starts from the belief that story creation can be approached mathema
 
 Current writing workflows usually spread ideas, setting notes, scenes, and plot structure across word processors or loose documents. That makes structural validation difficult. StoryGraph now has a v1.0 consistency core that can persist canonical story graphs, run deterministic verdict checks, propose and rank repairs, surface soft-prior advisory signals, accept natural-language reviewed input, and inspect verdict runs through a browser surface.
 
-The next priority should be selected deliberately as a new milestone rather than extending v1.0 in place. Candidate directions include chapter-scale ingestion, collaboration/reviewer workflows, export/format packs, and richer inspection or visualization on top of the verified analysis core.
+v1.1 focuses on draft scale. The next product risk is whether the verified v1.0 analysis loop still works when a writer submits chapter-scale text, reviews extracted material incrementally, reruns checks over selected scope, and compares revisions without losing provenance.
 
 ## Current State
 
@@ -55,11 +55,17 @@ Verification:
 - Requirements: 19/19 v1 requirements satisfied.
 - Automated checks at milestone close: `npm run test`, `npm run build`, and `npm run test:browser` passed.
 
-## Next Milestone Goals
+## Current Milestone: v1.1 Draft Scale
 
-- Choose the v1.1 product direction with `/gsd-new-milestone`.
-- Keep deterministic verdict truth separate from advisory priors in any new workflow.
-- Preserve explainable evidence and repair traceability as the core acceptance standard.
+Goal: Let writers analyze chapter-scale drafts incrementally while preserving review control, deterministic verdict reruns, and inspectable deltas.
+
+Target features:
+- Draft/chapter ingestion model over ordered documents, chapters, and segments.
+- Incremental extraction and review workflow across multiple text segments.
+- Scoped consistency checks for chapter, revision, and approved segment ranges.
+- Revision diff support for verdicts, repairs, and canonical graph changes.
+- Larger-run inspection entrypoints that keep triage usable.
+- Provenance and operational guardrails for partial approvals, resumable work, and failed extraction batches.
 
 ## Constraints
 
@@ -97,4 +103,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-10 after v1.0 milestone completion*
+*Last updated: 2026-04-10 starting v1.1 Draft Scale*
