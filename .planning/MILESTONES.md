@@ -1,5 +1,22 @@
 # Milestones
 
+## v1.1 Draft Scale (Active)
+
+**Goal:** Let writers analyze chapter-scale drafts incrementally while preserving review control, deterministic verdict reruns, and inspectable deltas.
+
+**Planned phases:** 4 phases, 12 plans
+
+**Key targets:**
+
+- Draft/chapter container and revision metadata
+- Deterministic segment planning with stable labels, order, offsets, and source references
+- Segment-level extraction, retry, review, correction, and approval
+- Explicit approved-scope consistency checks
+- Revision/run diffing with scope-aware finding labels
+- Large-run inspection grouping, filtering, source spans, and operational progress state
+
+---
+
 ## v1.0 MVP (Shipped: 2026-04-10)
 
 **Phases completed:** 8 phases, 25 plans, 65 tasks

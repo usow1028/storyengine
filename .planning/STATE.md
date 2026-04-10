@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Draft Scale
-status: defining_requirements
-stopped_at: v1.1 milestone started
-last_updated: "2026-04-10T20:10:42+09:00"
-last_activity: 2026-04-10 -- v1.1 Draft Scale started
+status: planned
+stopped_at: v1.1 roadmap ready
+last_updated: "2026-04-10T20:15:13+09:00"
+last_activity: 2026-04-10 -- v1.1 Draft Scale requirements and roadmap defined
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
-  total_plans: 0
+  total_plans: 12
   completed_plans: 0
   percent: 0
 ---
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-10)
 
 **Core value:** Writers must be able to see exactly why a story is coherent or incoherent, and what explanation or prior condition would repair it.
-**Current focus:** v1.1 Draft Scale requirements and roadmap
+**Current focus:** Phase 9 discussion and planning
 
 ## Current Position
 
-Phase: No active phase
-Plan: Define v1.1 requirements and roadmap
-Status: v1.1 milestone started
-Last activity: 2026-04-10 -- v1.1 Draft Scale started
+Phase: 9 - Draft Container and Segment Scope Model
+Plan: Discuss Phase 9, then create implementation plans
+Status: v1.1 roadmap ready
+Last activity: 2026-04-10 -- v1.1 Draft Scale requirements and roadmap defined
 
 Progress: [----------] 0%
 
@@ -86,8 +86,8 @@ Progress: [----------] 0%
 
 ### Pending Todos
 
-- Define v1.1 requirements for chapter-scale draft ingestion, incremental review, scoped checks, revision diffs, and inspection scale.
-- Create v1.1 roadmap phases starting after the completed v1.0 phase sequence.
+- Run `/gsd-discuss-phase 9` to capture phase-level implementation choices.
+- Run `/gsd-plan-phase 9` after discussion to create executable plans.
 
 ### Blockers/Concerns
 
@@ -95,6 +95,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-10T20:10:42+09:00
-Stopped at: v1.1 milestone started
+Last session: 2026-04-10T20:15:13+09:00
+Stopped at: v1.1 roadmap ready
 Resume file: .planning/ROADMAP.md
