@@ -10,6 +10,7 @@ import {
 } from "../storage/index.js";
 import type { IngestionLlmClient } from "../services/ingestion-llm-client.js";
 import type { SoftPriorRuntimeConfig } from "../services/soft-prior-runtime.js";
+import { registerInspectionRoutes } from "./routes/inspection.js";
 import { registerIngestionCheckRoutes } from "./routes/ingestion-check.js";
 import { registerIngestionExtractRoutes } from "./routes/ingestion-extract.js";
 import { registerIngestionReadRoutes } from "./routes/ingestion-read.js";
@@ -37,6 +38,7 @@ export function buildStoryGraphApi(dependencies: StoryGraphApiDependencies): Fas
   registerIngestionReadRoutes(app, dependencies);
   registerIngestionReviewRoutes(app, dependencies);
   registerIngestionCheckRoutes(app, dependencies);
+  registerInspectionRoutes(app, dependencies);
 
   return app;
 }

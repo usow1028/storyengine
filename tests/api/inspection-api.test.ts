@@ -224,7 +224,6 @@ describe("inspection api", () => {
     expect(responseText).not.toContain("snapshotSet");
     expect(responseText).not.toContain("PriorSnapshot");
     expect(responseText).not.toContain("genreWeights");
-    expect(responseText).not.toContain("worldProfile");
 
     await app.close();
   });

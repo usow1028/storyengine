@@ -3,11 +3,20 @@ import { z } from "zod";
 import {
   RepairCandidateSchema,
   RepairPlausibilityAdjustmentSchema,
+  RunInspectionResponseSchema,
   ReviewSegmentPatchSchema,
   IngestionSessionSnapshotSchema,
   SoftPriorAssessmentSchema,
   SubmissionInputKindSchema
 } from "../domain/index.js";
+
+export { RunInspectionResponseSchema };
+export type RunInspectionResponse = z.infer<typeof RunInspectionResponseSchema>;
+
+export const InspectionRunParamsSchema = z.object({
+  runId: z.string().trim().min(1)
+});
+export type InspectionRunParams = z.infer<typeof InspectionRunParamsSchema>;
 
 export const SubmitIngestionRequestSchema = z
   .object({
