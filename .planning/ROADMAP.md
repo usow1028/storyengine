@@ -147,11 +147,15 @@ Plans:
   1. A user can inspect verdicts in structured lists grouped by contradiction type
   2. A user can trace linked events, states, and world rules on a timeline or graph view
   3. The interface visually distinguishes `Hard Contradiction`, `Repairable Gap`, and `Soft Drift`
-**Plans**: 2 plans
+**Plans**: 6 plans
 
 Plans:
-- [ ] 08-01: Build verdict explorer and structured review views
-- [ ] 08-02: Add linked timeline/graph inspection for narrative state and violations
+- [x] 08-01: Add UI build tooling and minimal inspection shell
+- [x] 08-02: Persist sanitized inspection snapshots for verdict runs
+- [ ] 08-03: Build run-scoped inspection payload service and API route
+- [ ] 08-04: Build split-view verdict triage and detail UI
+- [ ] 08-05: Add evidence timeline, structured trace, and advisory UI
+- [ ] 08-06: Serve the inspection shell and verify browser behavior
 
 ## Progress
 
@@ -167,4 +171,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 5. Natural-Language Ingestion and Review API | 2/2 | Complete | 2026-04-10 |
 | 6. Verification and Traceability Closure | 3/3 | Complete | 2026-04-10 |
 | 7. Soft-Prior Runtime Integration | 3/3 | Complete | 2026-04-10 |
-| 8. Interactive Inspection Surface | 0/2 | Not started | - |
+| 8. Interactive Inspection Surface | 2/6 | In Progress | - |
