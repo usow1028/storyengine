@@ -5,7 +5,7 @@ const LOAD_ERROR_MESSAGE = "Inspection run could not load.";
 export async function fetchRunInspection(runId: string): Promise<RunInspectionResponse> {
   const response = await fetch(`/api/inspection/runs/${encodeURIComponent(runId)}`, {
     headers: {
-      Accept: "application/json"
+      accept: "application/json"
     }
   });
 

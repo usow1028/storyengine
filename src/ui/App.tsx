@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { InspectionShell } from "./components/InspectionShell.js";
 import { fetchRunInspection } from "./inspection-client.js";
 import type { RunInspectionResponse } from "./types.js";
 
@@ -63,7 +64,7 @@ export function App() {
 
   if (loadState.status === "empty") {
     return (
-      <main aria-labelledby="inspection-title">
+      <main className="inspection-state" aria-labelledby="inspection-title">
         <h1 id="inspection-title">Inspection Console</h1>
         <section aria-labelledby="empty-heading">
           <h2 id="empty-heading">No consistency run selected</h2>
@@ -75,7 +76,7 @@ export function App() {
 
   if (loadState.status === "loading") {
     return (
-      <main aria-labelledby="inspection-title" aria-busy="true">
+      <main className="inspection-state" aria-labelledby="inspection-title" aria-busy="true">
         <h1 id="inspection-title">Inspection Console</h1>
         <p>Loading inspection run.</p>
       </main>
@@ -84,36 +85,12 @@ export function App() {
 
   if (loadState.status === "error") {
     return (
-      <main aria-labelledby="inspection-title">
+      <main className="inspection-state" aria-labelledby="inspection-title">
         <h1 id="inspection-title">Inspection Console</h1>
         <p role="alert">{ERROR_COPY}</p>
       </main>
     );
   }
 
-  const { data } = loadState;
-
-  return (
-    <main aria-labelledby="inspection-title">
-      <header>
-        <h1 id="inspection-title">Inspection Console</h1>
-        <p>Run {data.run.runId}</p>
-      </header>
-
-      <section aria-labelledby="triage-heading">
-        <h2 id="triage-heading">Verdict Triage</h2>
-        {data.groups.length === 0 ? (
-          <p>No verdict groups returned for this run.</p>
-        ) : (
-          <ul>
-            {data.groups.map((group) => (
-              <li key={group.verdictKind}>
-                <strong>{group.verdictKind}</strong>: {group.count}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </main>
-  );
+  return <InspectionShell data={loadState.data} />;
 }
