@@ -9,6 +9,7 @@ import {
   ReviewSegmentPatchRequestSchema,
   SubmitIngestionRequestSchema
 } from "../../src/api/schemas.js";
+import { CanonicalEventSchema } from "../../src/domain/events.js";
 import {
   applyCanonicalSchema,
   IngestionSessionRepository,
@@ -19,6 +20,7 @@ import {
   VerdictRunRepository
 } from "../../src/storage/index.js";
 import { createConfiguredIngestionLlmClient } from "../../src/services/ingestion-session.js";
+import { buildSoftPriorCheckCandidates } from "../fixtures/soft-prior-ingestion-fixtures.js";
 
 function createTestClient() {
   const memory = newDb({ autoCreateForeignKeyIndices: true });
@@ -55,6 +57,15 @@ function expectNoRequestPriorConfigFields(parsed: Record<string, unknown>): void
   expect(parsed).not.toHaveProperty("worldProfile");
 }
 
+function eventTokenParts(event: ReturnType<typeof CanonicalEventSchema.parse>): string[] {
+  return event.effects.flatMap((effect) => [
+    ...effect.stateChanges.map(
+      (change) => `${change.field}:${change.operation}:${String(change.value)}`
+    ),
+    ...effect.ruleChanges.map((change) => change.ruleVersionId)
+  ]);
+}
+
 describe("ingestion check controls api", () => {
   let pool: Pool;
   let repository: IngestionSessionRepository;
@@ -78,6 +89,37 @@ describe("ingestion check controls api", () => {
 
   afterEach(async () => {
     await pool.end();
+  });
+
+  it("builds soft-prior ingestion candidates for the advisory check flow", () => {
+    const candidates = buildSoftPriorCheckCandidates(
+      "session:soft-prior",
+      "segment:soft-prior"
+    );
+    const events = candidates
+      .filter((candidate) => candidate.candidateKind === "event")
+      .map((candidate) => CanonicalEventSchema.parse(candidate.payload));
+
+    expect(events.length).toBeGreaterThanOrEqual(2);
+
+    const spell = events.find((event) => event.eventType === "spell_cast");
+    const arrival = events.find((event) => event.eventType === "instant_arrival");
+
+    expect(spell).toBeDefined();
+    expect(arrival).toBeDefined();
+    expect(arrival).toMatchObject({
+      time: {
+        relation: "same-window",
+        durationMinutes: 0,
+        minTravelMinutes: 480
+      },
+      placeId: "place:castle"
+    });
+
+    const tokens = events.flatMap((event) => eventTokenParts(event));
+    expect(tokens).toContain("resources:remove:mana_reserve");
+    expect(tokens).toContain("locationId:set:place:castle");
+    expect(tokens).toContain("teleportation_enabled");
   });
 
   it("returns 409 before approval, runs checks only on explicit request, and returns checked with a runId", async () => {
