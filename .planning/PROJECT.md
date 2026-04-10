@@ -15,6 +15,7 @@ Writers must be able to see exactly why a story is coherent or incoherent, and w
 ### Validated
 
 - Phase 07 validated that corpus-derived soft priors can surface as explainable advisory checked-output data without changing deterministic hard verdict truth.
+- Phase 08 validated that consistency results can be inspected in a structured browser analysis view with verdict triage, deterministic evidence, event timeline, trace fields, repair suggestions, and advisory prior boundaries before advanced visualization is added.
 
 ### Active
 
@@ -76,4 +77,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-10 after Phase 07 soft-prior runtime integration*
+*Last updated: 2026-04-10 after Phase 08 interactive inspection surface verification*
