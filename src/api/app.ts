@@ -11,6 +11,7 @@ import {
 import type { IngestionLlmClient } from "../services/ingestion-llm-client.js";
 import type { SoftPriorRuntimeConfig } from "../services/soft-prior-runtime.js";
 import { registerInspectionRoutes } from "./routes/inspection.js";
+import { registerInspectionUiRoutes } from "./routes/inspection-ui.js";
 import { registerIngestionCheckRoutes } from "./routes/ingestion-check.js";
 import { registerIngestionExtractRoutes } from "./routes/ingestion-extract.js";
 import { registerIngestionReadRoutes } from "./routes/ingestion-read.js";
@@ -26,6 +27,7 @@ export interface StoryGraphApiDependencies {
   verdictRunRepository: VerdictRunRepository;
   llmClient: IngestionLlmClient;
   softPriorConfig?: SoftPriorRuntimeConfig;
+  inspectionUiDistDir?: string;
   now?: () => string;
   generateId?: () => string;
 }
@@ -39,6 +41,9 @@ export function buildStoryGraphApi(dependencies: StoryGraphApiDependencies): Fas
   registerIngestionReviewRoutes(app, dependencies);
   registerIngestionCheckRoutes(app, dependencies);
   registerInspectionRoutes(app, dependencies);
+  if (dependencies.inspectionUiDistDir) {
+    registerInspectionUiRoutes(app, { uiDistDir: dependencies.inspectionUiDistDir });
+  }
 
   return app;
 }
