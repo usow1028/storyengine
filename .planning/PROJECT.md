@@ -14,7 +14,7 @@ Writers must be able to see exactly why a story is coherent or incoherent, and w
 
 ### Validated
 
-(None yet — ship to validate)
+- Phase 07 validated that corpus-derived soft priors can surface as explainable advisory checked-output data without changing deterministic hard verdict truth.
 
 ### Active
 
@@ -76,4 +76,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-09 after initialization*
+*Last updated: 2026-04-10 after Phase 07 soft-prior runtime integration*

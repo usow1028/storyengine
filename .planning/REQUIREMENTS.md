@@ -34,7 +34,7 @@ Requirements for the initial consistency-engine release. Each maps to a roadmap 
 
 ### Pattern Priors
 
-- [ ] **SOFT-01**: Engine can use corpus-derived narrative patterns as soft priors without promoting them to hard rules
+- [x] **SOFT-01**: Engine can use corpus-derived narrative patterns as soft priors without promoting them to hard rules
 
 ### Data & Workflow
 
@@ -94,7 +94,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | VERD-03 | Phase 6 | Verified |
 | REPR-01 | Phase 6 | Verified |
 | REPR-02 | Phase 6 | Verified |
-| SOFT-01 | Phase 7 | Pending |
+| SOFT-01 | Phase 7 | Verified |
 | DATA-02 | Phase 6 | Verified |
 | FLOW-01 | Phase 6 | Verified |
 | FLOW-03 | Phase 6 | Verified |
@@ -107,4 +107,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-04-09*
-*Last updated: 2026-04-10 after Phase 6 traceability reconciliation*
+*Last updated: 2026-04-10 after Phase 7 soft-prior runtime verification*

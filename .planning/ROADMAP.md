@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Corpus Priors and Soft Pattern Layer** - Add pattern-backed soft drift signals and repair ranking without weakening hard logic
 - [x] **Phase 5: Natural-Language Ingestion and Review API** - Let writers submit prose-like input and review structured interpretations before checking
 - [x] **Phase 6: Verification and Traceability Closure** - Backfill phase verification artifacts and reconcile requirement traceability for completed milestone work
-- [ ] **Phase 7: Soft-Prior Runtime Integration** - Wire advisory prior scoring into the checked runtime path without collapsing hard and soft judgments
+- [x] **Phase 7: Soft-Prior Runtime Integration** - Wire advisory prior scoring into the checked runtime path without collapsing hard and soft judgments
 - [ ] **Phase 8: Interactive Inspection Surface** - Provide timeline/graph and structured views for exploring verdicts and repairs
 
 ## Phase Details
@@ -166,5 +166,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 4. Corpus Priors and Soft Pattern Layer | 2/2 | Complete | 2026-04-10 |
 | 5. Natural-Language Ingestion and Review API | 2/2 | Complete | 2026-04-10 |
 | 6. Verification and Traceability Closure | 3/3 | Complete | 2026-04-10 |
-| 7. Soft-Prior Runtime Integration | 0/3 | Not started | - |
+| 7. Soft-Prior Runtime Integration | 3/3 | Complete | 2026-04-10 |
 | 8. Interactive Inspection Surface | 0/2 | Not started | - |
