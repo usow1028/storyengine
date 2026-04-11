@@ -204,6 +204,8 @@ export async function executeIngestionCheck(
   revisionId: string;
   runId: string;
   previousRunId: string | null;
+  scopeId: string | null;
+  comparisonScopeKey: string | null;
   softPrior: SoftPriorAdvisoryResult;
 }> {
   const snapshot = await dependencies.ingestionSessionRepository.loadSessionSnapshot(sessionId);
@@ -270,6 +272,8 @@ export async function executeIngestionCheck(
     revisionId: snapshot.session.revisionId,
     runId: verdictRun.runId,
     previousRunId: verdictRun.previousRunId ?? null,
+    scopeId: scope?.scopeId ?? null,
+    comparisonScopeKey: scope ? buildComparisonScopeKey(snapshot, scope) : null,
     softPrior: verdictRun.softPrior
   };
 }

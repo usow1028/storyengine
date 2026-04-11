@@ -13,6 +13,7 @@ import {
 import type { VerdictRecord, VerdictRunRecord } from "../../src/domain/index.js";
 import { CanonicalEventSchema } from "../../src/domain/events.js";
 import type { PriorSnapshotSet } from "../../src/engine/index.js";
+import { buildImpossibleTravelFixture } from "../fixtures/hard-constraint-fixtures.js";
 import {
   applyCanonicalSchema,
   IngestionSessionRepository,
@@ -46,6 +47,19 @@ function correctedCharacterPayload(name: string, sessionId: string) {
     archetypes: [],
     defaultLoyalties: []
   };
+}
+
+interface ScopedCheckSubmission {
+  sessionId: string;
+  storyId: string;
+  revisionId: string;
+  sections: Array<{ sectionId: string }>;
+  segments: Array<{ segmentId: string }>;
+  scopes: Array<{
+    scopeId: string;
+    scopeKind: string;
+    sectionId?: string | null;
+  }>;
 }
 
 async function countVerdictRuns(pool: Pool): Promise<number> {
@@ -82,6 +96,384 @@ function buildApiSoftPriorSnapshotSet(): PriorSnapshotSet {
     genreSnapshots: fixture.artifacts
       .filter((artifact) => artifact.artifact.layer === "genre")
       .flatMap((artifact) => artifact.artifact.snapshots)
+  };
+}
+
+async function prepareScopedCheckSession(input: {
+  ingestionSessionRepository: IngestionSessionRepository;
+  storyRepository: StoryRepository;
+  ruleRepository: RuleRepository;
+  firstSegmentStale?: boolean;
+}): Promise<{
+  submitted: ScopedCheckSubmission;
+  fullScopeId: string;
+  sectionScopeId: string;
+}> {
+  const fixture = buildImpossibleTravelFixture();
+  const sessionId = "session:scoped-check-api";
+  const firstSegmentId = `${sessionId}:segment:1`;
+  const secondSegmentId = `${sessionId}:segment:2`;
+  const firstSectionId = `draft-section:${sessionId}:1`;
+  const secondSectionId = `draft-section:${sessionId}:2`;
+  const fullScopeId = `scope:${sessionId}:full`;
+  const firstSectionScopeId = `scope:${sessionId}:section:1`;
+
+  await input.storyRepository.saveGraph(fixture.graph);
+  for (const rule of fixture.availableRules) {
+    if (rule.version) {
+      await input.ruleRepository.saveRulePack(rule.metadata, rule.version);
+    }
+  }
+
+  await input.ingestionSessionRepository.createSession({
+    sessionId,
+    storyId: fixture.graph.story.storyId,
+    revisionId: fixture.graph.revision.revisionId,
+    draftTitle: "Scoped Check API Draft",
+    defaultRulePackName: fixture.graph.story.defaultRulePackName,
+    inputKind: "full_draft",
+    rawText: "Airport scene.\n\nMeeting scene.",
+    workflowState: "approved",
+    promptFamily: "phase11-test",
+    modelName: "test-model",
+    lastVerdictRunId: null,
+    createdAt: "2026-04-11T08:25:00Z",
+    updatedAt: "2026-04-11T08:25:00Z",
+    lastCheckedAt: null
+  });
+
+  await input.ingestionSessionRepository.saveDraftPlan(sessionId, {
+    document: {
+      documentId: `draft-document:${sessionId}`,
+      storyId: fixture.graph.story.storyId,
+      title: "Scoped Check API Draft",
+      createdAt: "2026-04-11T08:25:00Z",
+      updatedAt: "2026-04-11T08:25:00Z"
+    },
+    revision: {
+      draftRevisionId: `draft-revision:${sessionId}`,
+      documentId: `draft-document:${sessionId}`,
+      storyId: fixture.graph.story.storyId,
+      revisionId: fixture.graph.revision.revisionId,
+      basedOnDraftRevisionId: null,
+      createdAt: "2026-04-11T08:25:00Z"
+    },
+    sections: [
+      {
+        sectionId: firstSectionId,
+        draftRevisionId: `draft-revision:${sessionId}`,
+        sectionKind: "chapter",
+        sequence: 0,
+        label: "Chapter One",
+        sourceTextRef: {
+          sourceKind: "ingestion_session_raw_text",
+          sessionId,
+          startOffset: 0,
+          endOffset: 13,
+          textNormalization: "lf"
+        }
+      },
+      {
+        sectionId: secondSectionId,
+        draftRevisionId: `draft-revision:${sessionId}`,
+        sectionKind: "chapter",
+        sequence: 1,
+        label: "Chapter Two",
+        sourceTextRef: {
+          sourceKind: "ingestion_session_raw_text",
+          sessionId,
+          startOffset: 15,
+          endOffset: 28,
+          textNormalization: "lf"
+        }
+      }
+    ],
+    segments: [
+      {
+        segment: {
+          segmentId: firstSegmentId,
+          sessionId,
+          sequence: 0,
+          label: "Airport scene",
+          startOffset: 0,
+          endOffset: 13,
+          segmentText: "Airport scene.",
+          draftRevisionId: `draft-revision:${sessionId}`,
+          sectionId: firstSectionId,
+          draftPath: {
+            documentId: `draft-document:${sessionId}`,
+            draftRevisionId: `draft-revision:${sessionId}`,
+            sectionId: firstSectionId,
+            segmentId: firstSegmentId,
+            sequence: 0
+          },
+          sourceTextRef: {
+            sourceKind: "ingestion_session_raw_text",
+            sessionId,
+            startOffset: 0,
+            endOffset: 13,
+            textNormalization: "lf"
+          },
+          workflowState: "approved",
+          approvedAt: "2026-04-11T08:25:30Z",
+          attemptCount: 0,
+          lastExtractionAt: null,
+          lastAttemptStatus: null,
+          lastFailureSummary: null,
+          stale: input.firstSegmentStale ?? false,
+          staleReason: null,
+          currentAttemptId: null
+        },
+        sourceTextRef: {
+          sourceKind: "ingestion_session_raw_text",
+          sessionId,
+          startOffset: 0,
+          endOffset: 13,
+          textNormalization: "lf"
+        },
+        draftPath: {
+          documentId: `draft-document:${sessionId}`,
+          draftRevisionId: `draft-revision:${sessionId}`,
+          sectionId: firstSectionId,
+          segmentId: firstSegmentId,
+          sequence: 0
+        }
+      },
+      {
+        segment: {
+          segmentId: secondSegmentId,
+          sessionId,
+          sequence: 1,
+          label: "Meeting scene",
+          startOffset: 15,
+          endOffset: 28,
+          segmentText: "Meeting scene.",
+          draftRevisionId: `draft-revision:${sessionId}`,
+          sectionId: secondSectionId,
+          draftPath: {
+            documentId: `draft-document:${sessionId}`,
+            draftRevisionId: `draft-revision:${sessionId}`,
+            sectionId: secondSectionId,
+            segmentId: secondSegmentId,
+            sequence: 1
+          },
+          sourceTextRef: {
+            sourceKind: "ingestion_session_raw_text",
+            sessionId,
+            startOffset: 15,
+            endOffset: 28,
+            textNormalization: "lf"
+          },
+          workflowState: "needs_review",
+          approvedAt: null,
+          attemptCount: 0,
+          lastExtractionAt: null,
+          lastAttemptStatus: null,
+          lastFailureSummary: null,
+          stale: false,
+          staleReason: null,
+          currentAttemptId: null
+        },
+        sourceTextRef: {
+          sourceKind: "ingestion_session_raw_text",
+          sessionId,
+          startOffset: 15,
+          endOffset: 28,
+          textNormalization: "lf"
+        },
+        draftPath: {
+          documentId: `draft-document:${sessionId}`,
+          draftRevisionId: `draft-revision:${sessionId}`,
+          sectionId: secondSectionId,
+          segmentId: secondSegmentId,
+          sequence: 1
+        }
+      }
+    ],
+    checkScopes: [
+      {
+        scopeKind: "full_approved_draft",
+        scopeId: fullScopeId,
+        documentId: `draft-document:${sessionId}`,
+        draftRevisionId: `draft-revision:${sessionId}`,
+        storyId: fixture.graph.story.storyId,
+        revisionId: fixture.graph.revision.revisionId
+      },
+      {
+        scopeKind: "section",
+        scopeId: firstSectionScopeId,
+        documentId: `draft-document:${sessionId}`,
+        draftRevisionId: `draft-revision:${sessionId}`,
+        sectionId: firstSectionId,
+        sourceTextRef: {
+          sourceKind: "ingestion_session_raw_text",
+          sessionId,
+          startOffset: 0,
+          endOffset: 13,
+          textNormalization: "lf"
+        }
+      }
+    ],
+    normalizedRawText: "Airport scene.\n\nMeeting scene."
+  });
+
+  await input.ingestionSessionRepository.saveSegments(sessionId, [
+    {
+      segmentId: firstSegmentId,
+      sessionId,
+      sequence: 0,
+      label: "Airport scene",
+      startOffset: 0,
+      endOffset: 13,
+      segmentText: "Airport scene.",
+      draftRevisionId: `draft-revision:${sessionId}`,
+      sectionId: firstSectionId,
+      draftPath: {
+        documentId: `draft-document:${sessionId}`,
+        draftRevisionId: `draft-revision:${sessionId}`,
+        sectionId: firstSectionId,
+        segmentId: firstSegmentId,
+        sequence: 0
+      },
+      sourceTextRef: {
+        sourceKind: "ingestion_session_raw_text",
+        sessionId,
+        startOffset: 0,
+        endOffset: 13,
+        textNormalization: "lf"
+      },
+      workflowState: "approved",
+      approvedAt: "2026-04-11T08:25:30Z",
+      attemptCount: 0,
+      lastExtractionAt: null,
+      lastAttemptStatus: null,
+      lastFailureSummary: null,
+      stale: false,
+      staleReason: null,
+      currentAttemptId: null
+    },
+    {
+      segmentId: secondSegmentId,
+      sessionId,
+      sequence: 1,
+      label: "Meeting scene",
+      startOffset: 15,
+      endOffset: 28,
+      segmentText: "Meeting scene.",
+      draftRevisionId: `draft-revision:${sessionId}`,
+      sectionId: secondSectionId,
+      draftPath: {
+        documentId: `draft-document:${sessionId}`,
+        draftRevisionId: `draft-revision:${sessionId}`,
+        sectionId: secondSectionId,
+        segmentId: secondSegmentId,
+        sequence: 1
+      },
+      sourceTextRef: {
+        sourceKind: "ingestion_session_raw_text",
+        sessionId,
+        startOffset: 15,
+        endOffset: 28,
+        textNormalization: "lf"
+      },
+      workflowState: "needs_review",
+      approvedAt: null,
+      attemptCount: 0,
+      lastExtractionAt: null,
+      lastAttemptStatus: null,
+      lastFailureSummary: null,
+      stale: false,
+      staleReason: null,
+      currentAttemptId: null
+    }
+  ]);
+
+  await input.ingestionSessionRepository.saveExtractionBatch({
+    sessionId,
+    segments: [
+      {
+        segmentId: firstSegmentId,
+        workflowState: "approved",
+        ...(input.firstSegmentStale
+          ? {
+              attempt: {
+                attemptId: `${firstSegmentId}:attempt:1`,
+                attemptNumber: 1,
+                requestKind: "targeted_retry" as const,
+                status: "success" as const,
+                invalidatedApproval: true,
+                startedAt: "2026-04-11T08:25:45Z",
+                finishedAt: "2026-04-11T08:25:50Z",
+                errorSummary: null
+              }
+            }
+          : {}),
+        candidates: [
+          {
+            candidateId: `${firstSegmentId}:event:airport`,
+            sessionId,
+            segmentId: firstSegmentId,
+            candidateKind: "event",
+            canonicalKey: "event:airport",
+            confidence: 0.99,
+            reviewNeeded: false,
+            reviewNeededReason: null,
+            sourceSpanStart: 0,
+            sourceSpanEnd: 13,
+            provenanceDetail: { source: "scoped-check-fixture" },
+            extractedPayload: fixture.graph.events[0],
+            correctedPayload: null,
+            normalizedPayload: fixture.graph.events[0]
+          }
+        ]
+      },
+      {
+        segmentId: secondSegmentId,
+        workflowState: "needs_review",
+        candidates: [
+          {
+            candidateId: `${secondSegmentId}:event:meeting`,
+            sessionId,
+            segmentId: secondSegmentId,
+            candidateKind: "event",
+            canonicalKey: "event:meeting",
+            confidence: 0.99,
+            reviewNeeded: false,
+            reviewNeededReason: null,
+            sourceSpanStart: 15,
+            sourceSpanEnd: 28,
+            provenanceDetail: { source: "scoped-check-fixture" },
+            extractedPayload: fixture.graph.events[1],
+            correctedPayload: null,
+            normalizedPayload: fixture.graph.events[1]
+          }
+        ]
+      }
+    ]
+  });
+
+  return {
+    submitted: {
+      sessionId,
+      storyId: fixture.graph.story.storyId,
+      revisionId: fixture.graph.revision.revisionId,
+      sections: [{ sectionId: firstSectionId }, { sectionId: secondSectionId }],
+      segments: [{ segmentId: firstSegmentId }, { segmentId: secondSegmentId }],
+      scopes: [
+        {
+          scopeId: fullScopeId,
+          scopeKind: "full_approved_draft",
+          sectionId: null
+        },
+        {
+          scopeId: firstSectionScopeId,
+          scopeKind: "section",
+          sectionId: firstSectionId
+        }
+      ]
+    },
+    fullScopeId,
+    sectionScopeId: firstSectionScopeId
   };
 }
 
@@ -390,7 +782,9 @@ describe("ingestion check controls api", () => {
       workflowState: "checked",
       storyId: "story:draft:session:soft-prior-check",
       revisionId: "revision:draft:session:soft-prior-check",
-      previousRunId: null
+      previousRunId: null,
+      scopeId: null,
+      comparisonScopeKey: null
     });
     expect(enabled.checked.runId).toContain("run:");
     expect(enabled.checked.softPrior.status).toBe("available");
@@ -443,6 +837,8 @@ describe("ingestion check controls api", () => {
       revisionId: "revision:checked",
       runId: "run:checked",
       previousRunId: null,
+      scopeId: null,
+      comparisonScopeKey: null,
       softPrior
     });
 
@@ -790,6 +1186,192 @@ describe("ingestion check controls api", () => {
     });
     expect(checkResponse.statusCode).toBe(200);
     expect(checkResponse.json().workflowState).toBe("checked");
+
+    await app.close();
+  });
+
+  it("runs scoped checks for an approved section while another section stays unresolved", async () => {
+    const llmClient = createConfiguredIngestionLlmClient({
+      modelName: "test-model",
+      extractor: async ({ segmentId, sessionId }) => {
+        const name = segmentId.endsWith(":1") ? "Alice" : "Bob";
+        return {
+          candidates: [
+            {
+              candidateId: `${segmentId}:entity`,
+              candidateKind: "entity",
+              canonicalKey: `entity:${name.toLowerCase()}`,
+              confidence: 0.94,
+              sourceSpanStart: 0,
+              sourceSpanEnd: name.length,
+              provenanceDetail: { source: "api-test" },
+              payload: correctedCharacterPayload(name, sessionId)
+            }
+          ]
+        };
+      }
+    });
+
+    const app = buildStoryGraphApi({
+      ingestionSessionRepository: repository,
+      storyRepository,
+      ruleRepository,
+      provenanceRepository,
+      verdictRepository,
+      verdictRunRepository,
+      llmClient,
+      generateId: () => "scoped-check-api",
+      now: () => "2026-04-11T08:30:00Z"
+    });
+
+    const { submitted, sectionScopeId } = await prepareScopedCheckSession({
+      ingestionSessionRepository: repository,
+      storyRepository,
+      ruleRepository
+    });
+
+    const checkResponse = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/check`,
+      payload: {
+        scopeId: sectionScopeId
+      }
+    });
+
+    expect(checkResponse.statusCode).toBe(200);
+    const checked = CheckIngestionResponseSchema.parse(checkResponse.json());
+    expect(checked).toMatchObject({
+      sessionId: submitted.sessionId,
+      workflowState: "checked",
+      storyId: submitted.storyId,
+      revisionId: submitted.revisionId,
+      previousRunId: null,
+      scopeId: sectionScopeId,
+      comparisonScopeKey: expect.stringContaining("section:")
+    });
+    expect(checked.softPrior).toMatchObject({
+      status: "disabled",
+      assessment: null,
+      rerankedRepairs: [],
+      repairPlausibilityAdjustments: []
+    });
+
+    await app.close();
+  });
+
+  it("returns 409 when a scoped check includes a stale segment", async () => {
+    const llmClient = createConfiguredIngestionLlmClient({
+      modelName: "test-model",
+      extractor: async ({ segmentId, sessionId }) => {
+        const name = segmentId.endsWith(":1") ? "Alice" : "Bob";
+        return {
+          candidates: [
+            {
+              candidateId: `${segmentId}:entity`,
+              candidateKind: "entity",
+              canonicalKey: `entity:${name.toLowerCase()}`,
+              confidence: 0.94,
+              sourceSpanStart: 0,
+              sourceSpanEnd: name.length,
+              provenanceDetail: { source: "api-test" },
+              payload: correctedCharacterPayload(name, sessionId)
+            }
+          ]
+        };
+      }
+    });
+
+    const app = buildStoryGraphApi({
+      ingestionSessionRepository: repository,
+      storyRepository,
+      ruleRepository,
+      provenanceRepository,
+      verdictRepository,
+      verdictRunRepository,
+      llmClient,
+      generateId: () => "scoped-check-stale",
+      now: () => "2026-04-11T08:35:00Z"
+    });
+
+    const { submitted, sectionScopeId } = await prepareScopedCheckSession({
+      ingestionSessionRepository: repository,
+      storyRepository,
+      ruleRepository,
+      firstSegmentStale: true
+    });
+
+    const staleRetry = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/extract`,
+      payload: {
+        segmentIds: [submitted.segments[0].segmentId],
+        allowApprovalReset: true
+      }
+    });
+    expect(staleRetry.statusCode).toBe(200);
+
+    const blockedCheck = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/check`,
+      payload: {
+        scopeId: sectionScopeId
+      }
+    });
+
+    expect(blockedCheck.statusCode).toBe(409);
+    expect(blockedCheck.json().message).toContain("approved and current");
+
+    await app.close();
+  });
+
+  it("keeps full-session check blocked when scopeId is omitted", async () => {
+    const llmClient = createConfiguredIngestionLlmClient({
+      modelName: "test-model",
+      extractor: async ({ segmentId, sessionId }) => {
+        const name = segmentId.endsWith(":1") ? "Alice" : "Bob";
+        return {
+          candidates: [
+            {
+              candidateId: `${segmentId}:entity`,
+              candidateKind: "entity",
+              canonicalKey: `entity:${name.toLowerCase()}`,
+              confidence: 0.94,
+              sourceSpanStart: 0,
+              sourceSpanEnd: name.length,
+              provenanceDetail: { source: "api-test" },
+              payload: correctedCharacterPayload(name, sessionId)
+            }
+          ]
+        };
+      }
+    });
+
+    const app = buildStoryGraphApi({
+      ingestionSessionRepository: repository,
+      storyRepository,
+      ruleRepository,
+      provenanceRepository,
+      verdictRepository,
+      verdictRunRepository,
+      llmClient,
+      generateId: () => "full-session-check-blocked",
+      now: () => "2026-04-11T08:40:00Z"
+    });
+
+    const { submitted } = await prepareScopedCheckSession({
+      ingestionSessionRepository: repository,
+      storyRepository,
+      ruleRepository
+    });
+
+    const blockedCheck = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/check`
+    });
+
+    expect(blockedCheck.statusCode).toBe(409);
+    expect(blockedCheck.json().message).toContain("every segment approved and current");
+    expect(blockedCheck.body).not.toContain("comparisonScopeKey");
 
     await app.close();
   });

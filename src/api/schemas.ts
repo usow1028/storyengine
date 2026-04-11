@@ -165,6 +165,13 @@ export const SoftPriorAdvisoryResponseSchema = z.discriminatedUnion("status", [
 ]);
 export type SoftPriorAdvisoryResponse = z.infer<typeof SoftPriorAdvisoryResponseSchema>;
 
+export const CheckIngestionRequestSchema = z
+  .object({
+    scopeId: z.string().trim().min(1).optional()
+  })
+  .default({});
+export type CheckIngestionRequest = z.infer<typeof CheckIngestionRequestSchema>;
+
 export const CheckIngestionResponseSchema = z.object({
   sessionId: z.string().min(1),
   workflowState: z.literal("checked"),
@@ -172,6 +179,8 @@ export const CheckIngestionResponseSchema = z.object({
   revisionId: z.string().min(1),
   runId: z.string().min(1),
   previousRunId: z.string().nullable(),
+  scopeId: z.string().min(1).nullable(),
+  comparisonScopeKey: z.string().min(1).nullable(),
   softPrior: SoftPriorAdvisoryResponseSchema
 });
 export type CheckIngestionResponse = z.infer<typeof CheckIngestionResponseSchema>;
