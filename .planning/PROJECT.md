@@ -20,11 +20,12 @@ Writers must be able to see exactly why a story is coherent or incoherent, and w
 - Phase 09 validated the draft-scale data model for `DRAFT-01` and `DRAFT-03`: chapter-scale submissions now persist ordered document, revision, section, and segment metadata with LF-normalized source refs, first-class scope records, and additive API serialization without breaking legacy chunk flows.
 - Phase 10 validated incremental extraction and review resilience for draft scale: writers can retry selected segments, preserve prior successful snapshots, reopen approval explicitly, and keep mixed review state honest without corrupting canonical data.
 - Phase 11 validated scoped checks and revision diffs for draft scale: approved scope checks now run deterministically, verdict runs persist scope metadata additively, and inspection APIs compare same-scope runs or revisions through traceable `findingChanges`.
+- Phase 12 validated large-run inspection and operational guardrails for draft scale: inspection payloads now expose additive scope and operational summaries, the browser inspection surface supports grouped and filterable large runs without losing verdict-kind triage, and mixed-state warning visibility remains explicit in API and UI output.
+- v1.1 Draft Scale now validates the full chapter-scale loop end to end: ordered draft ingestion, incremental review, scoped checks, revision diffs, grouped inspection, provenance traceability, and operational honesty all remain deterministic and advisory-prior-safe.
 
 ### Active
 
-- [ ] v1.1 Draft Scale: analyze chapter-scale draft text through ordered ingestion, incremental review, scoped checks, and revision diffs.
-- [ ] Preserve deterministic verdict truth, evidence traceability, and advisory-prior boundaries across larger draft workflows.
+- [ ] Archive v1.1 and define the next milestone after retrospective review.
 
 ### Out of Scope
 
@@ -44,7 +45,7 @@ v1.1 focuses on draft scale. The next product risk is whether the verified v1.0 
 ## Current State
 
 v1.0 MVP shipped on 2026-04-10.
-Phases 09, 10, and 11 completed on 2026-04-11.
+Phases 09, 10, 11, and 12 completed on 2026-04-11.
 
 Delivered:
 - Canonical TypeScript/Zod story model and PostgreSQL-style persistence with pg-mem verification.
@@ -56,6 +57,7 @@ Delivered:
 - Draft-scale document, revision, section, segment, and scope modeling with additive persistence and additive API serialization for chapter-scale ingestion.
 - Incremental extraction, targeted retry, approval reset, and mixed-state review handling across many draft segments.
 - Scoped deterministic manual checks plus explicit revision/run diff selection with scope-labeled finding changes.
+- Large-run inspection payload summaries, grouped and filterable browser triage, row/detail provenance context, and prominent mixed-state operational warning banners for chapter-scale draft analysis.
 
 Verification:
 - v1.0 milestone audit: passed.
@@ -64,12 +66,17 @@ Verification:
 - Phase 09 close: `npm run typecheck` and `npm run test:ingestion` passed.
 - Phase 10 close: `npm run typecheck` and `npm run test:ingestion` passed.
 - Phase 11 close: `npm run typecheck`, `npm run test:reasoning`, `npm run test:ingestion`, and targeted inspection payload/API regressions passed.
+- Phase 12 close: `npm run typecheck`, `npm run test:reasoning`, `npm run test:ingestion`, targeted inspection payload/API/UI regressions, and `npm run test:browser -- tests/browser/inspection-surface.spec.ts` passed.
 
 ## Current Milestone: v1.1 Draft Scale
 
 Goal: Let writers analyze chapter-scale drafts incrementally while preserving review control, deterministic verdict reruns, and inspectable deltas.
 
-Target features:
+Status:
+- All v1.1 phase goals are complete at the phase level.
+- The next workflow step is `/gsd-complete-milestone v1.1` to archive the milestone and prepare the next one.
+
+Delivered milestone features:
 - Draft/chapter ingestion model over ordered documents, chapters, and segments.
 - Incremental extraction and review workflow across multiple text segments.
 - Scoped consistency checks for chapter, revision, and approved segment ranges.
@@ -113,4 +120,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-11 after Phase 11 completion*
+*Last updated: 2026-04-11 after Phase 12 completion*

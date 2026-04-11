@@ -1,9 +1,9 @@
 ---
 phase: 12
 slug: large-run-inspection-and-operational-guardrails
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: complete
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-04-11
 ---
 
@@ -38,25 +38,25 @@ created: 2026-04-11
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 12-01-01 | 01 | 1 | INSPECT-01, OPER-01, TRACE-01 | T-12-01 / T-12-03 | Inspection payload exposes operational summary, grouping keys, and provenance summaries without leaking raw snapshots. | service + API | `npm exec -- vitest run tests/services/inspection-payload.test.ts tests/api/inspection-api.test.ts --bail=1` | yes | pending |
-| 12-01-02 | 01 | 1 | DRAFT-03, TRACE-01 | T-12-03 | Domain schemas describe scope summary, section or chapter grouping keys, and source-span summaries additively. | domain + typecheck | `npm run typecheck && npm exec -- vitest run tests/services/inspection-payload.test.ts --bail=1` | yes | pending |
-| 12-01-03 | 01 | 1 | OPER-01, REVIEW-02, TRACE-01 | T-12-01 / T-12-03 / T-12-04 | Payload builder resolves segment and provenance context from stored records and returns sanitized warning counts plus source references. | service + API | `npm exec -- vitest run tests/services/inspection-payload.test.ts tests/api/inspection-api.test.ts --bail=1 && npm run typecheck` | yes | pending |
-| 12-02-01 | 02 | 2 | INSPECT-01, OPER-01 | T-12-01 / T-12-02 | UI regression coverage proves the warning banner, global filter bar, and grouped triage render from the additive payload. | UI + browser | `npm exec -- vitest run tests/ui/inspection-shell.test.ts --bail=1 && npm run test:browser -- tests/browser/inspection-surface.spec.ts` | yes | pending |
-| 12-02-02 | 02 | 2 | INSPECT-01 | T-12-02 | Browser filtering remains combinable and preserves fixed verdict-kind order while grouping by section or chapter inside each bucket. | UI | `npm exec -- vitest run tests/ui/inspection-shell.test.ts --bail=1 && npm run typecheck` | yes | pending |
-| 12-02-03 | 02 | 2 | DRAFT-03, REVIEW-02, TRACE-01 | T-12-03 | Row-level provenance and detail source spans remain visible before and after selection. | UI + browser | `npm exec -- vitest run tests/ui/inspection-shell.test.ts --bail=1 && npm run test:browser -- tests/browser/inspection-surface.spec.ts` | yes | pending |
-| 12-03-01 | 03 | 3 | INSPECT-01, OPER-01, REVIEW-02 | T-12-01 / T-12-02 / T-12-03 | Mixed-state fixtures prove inspectable runs stay honest about unresolved, stale, or failed draft state. | fixtures + API + browser | `npm exec -- vitest run tests/services/inspection-payload.test.ts tests/api/inspection-api.test.ts tests/ui/inspection-shell.test.ts --bail=1 && npm run test:browser -- tests/browser/inspection-surface.spec.ts` | yes | pending |
-| 12-03-02 | 03 | 3 | INSPECT-01, TRACE-01, OPER-01 | T-12-01 / T-12-02 / T-12-03 / T-12-04 | Milestone gate proves large-run browsing remains deterministic, traceable, and advisory-prior-safe after Phase 12 changes. | full regression | `npm run typecheck && npm run test:reasoning && npm run test:ingestion && npm exec -- vitest run tests/services/inspection-payload.test.ts tests/api/inspection-api.test.ts tests/ui/inspection-shell.test.ts --bail=1 && npm run test:browser -- tests/browser/inspection-surface.spec.ts` | yes | pending |
+| 12-01-01 | 01 | 1 | INSPECT-01, OPER-01, TRACE-01 | T-12-01 / T-12-03 | Inspection payload exposes operational summary, grouping keys, and provenance summaries without leaking raw snapshots. | service + API | `npm exec -- vitest run tests/services/inspection-payload.test.ts tests/api/inspection-api.test.ts --bail=1` | yes | complete |
+| 12-01-02 | 01 | 1 | DRAFT-03, TRACE-01 | T-12-03 | Domain schemas describe scope summary, section or chapter grouping keys, and source-span summaries additively. | domain + typecheck | `npm run typecheck && npm exec -- vitest run tests/services/inspection-payload.test.ts --bail=1` | yes | complete |
+| 12-01-03 | 01 | 1 | OPER-01, REVIEW-02, TRACE-01 | T-12-01 / T-12-03 / T-12-04 | Payload builder resolves segment and provenance context from stored records and returns sanitized warning counts plus source references. | service + API | `npm exec -- vitest run tests/services/inspection-payload.test.ts tests/api/inspection-api.test.ts --bail=1 && npm run typecheck` | yes | complete |
+| 12-02-01 | 02 | 2 | INSPECT-01, OPER-01 | T-12-01 / T-12-02 | UI regression coverage proves the warning banner, global filter bar, and grouped triage render from the additive payload. | UI + browser | `npm exec -- vitest run tests/ui/inspection-shell.test.ts --bail=1 && npm run test:browser -- tests/browser/inspection-surface.spec.ts` | yes | complete |
+| 12-02-02 | 02 | 2 | INSPECT-01 | T-12-02 | Browser filtering remains combinable and preserves fixed verdict-kind order while grouping by section or chapter inside each bucket. | UI | `npm exec -- vitest run tests/ui/inspection-shell.test.ts --bail=1 && npm run typecheck` | yes | complete |
+| 12-02-03 | 02 | 2 | DRAFT-03, REVIEW-02, TRACE-01 | T-12-03 | Row-level provenance and detail source spans remain visible before and after selection. | UI + browser | `npm exec -- vitest run tests/ui/inspection-shell.test.ts --bail=1 && npm run test:browser -- tests/browser/inspection-surface.spec.ts` | yes | complete |
+| 12-03-01 | 03 | 3 | INSPECT-01, OPER-01, REVIEW-02 | T-12-01 / T-12-02 / T-12-03 | Mixed-state fixtures prove inspectable runs stay honest about unresolved, stale, or failed draft state. | fixtures + API + browser | `npm exec -- vitest run tests/services/inspection-payload.test.ts tests/api/inspection-api.test.ts tests/ui/inspection-shell.test.ts --bail=1 && npm run test:browser -- tests/browser/inspection-surface.spec.ts` | yes | complete |
+| 12-03-02 | 03 | 3 | INSPECT-01, TRACE-01, OPER-01 | T-12-01 / T-12-02 / T-12-03 / T-12-04 | Milestone gate proves large-run browsing remains deterministic, traceable, and advisory-prior-safe after Phase 12 changes. | full regression | `npm run typecheck && npm run test:reasoning && npm run test:ingestion && npm exec -- vitest run tests/services/inspection-payload.test.ts tests/api/inspection-api.test.ts tests/ui/inspection-shell.test.ts --bail=1 && npm run test:browser -- tests/browser/inspection-surface.spec.ts` | yes | complete |
 
-*Status: pending until execution creates or extends the listed tests.*
+*Status: complete. All planned Phase 12 verification paths were exercised during execution.*
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] Extend `tests/services/inspection-payload.test.ts` — operational summary, section or chapter grouping keys, and provenance summary assertions.
-- [ ] Extend `tests/api/inspection-api.test.ts` — additive inspection response contract assertions for warning counts and grouping/filter metadata.
-- [ ] Extend `tests/ui/inspection-shell.test.ts` — warning banner, global filters, grouped triage, and detail provenance rendering.
-- [ ] Extend `tests/browser/inspection-surface.spec.ts` — end-to-end grouped browsing and prominent partial-state visibility.
+- [x] Extend `tests/services/inspection-payload.test.ts` — operational summary, section or chapter grouping keys, and provenance summary assertions.
+- [x] Extend `tests/api/inspection-api.test.ts` — additive inspection response contract assertions for warning counts and grouping/filter metadata.
+- [x] Extend `tests/ui/inspection-shell.test.ts` — warning banner, global filters, grouped triage, and detail provenance rendering.
+- [x] Extend `tests/browser/inspection-surface.spec.ts` — end-to-end grouped browsing and prominent partial-state visibility.
 
 ---
 
@@ -79,11 +79,11 @@ All planned Phase 12 behaviors have automated verification paths. No manual-only
 
 ## Validation Sign-Off
 
-- [ ] All tasks have automated verification or Wave 0 dependencies.
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verification.
-- [ ] Wave 0 covers all missing references.
-- [ ] No watch-mode flags.
-- [ ] Feedback latency < 70 seconds for targeted checks.
-- [ ] `nyquist_compliant: true` set in frontmatter after Phase 12 validation passes.
+- [x] All tasks have automated verification or Wave 0 dependencies.
+- [x] Sampling continuity: no 3 consecutive tasks without automated verification.
+- [x] Wave 0 covers all missing references.
+- [x] No watch-mode flags.
+- [x] Feedback latency < 70 seconds for targeted checks.
+- [x] `nyquist_compliant: true` set in frontmatter after Phase 12 validation passes.
 
-**Approval:** pending
+**Approval:** approved

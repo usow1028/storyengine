@@ -20,7 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 9: Draft Container and Segment Scope Model** - Add document, revision, segment hierarchy, and check-scope contracts for chapter-scale drafts
 - [x] **Phase 10: Incremental Extraction and Review Resilience** - Make extraction, retry, correction, and approval safe across many draft segments (completed 2026-04-11)
 - [x] **Phase 11: Scoped Checks and Revision Diff** - Run checks over explicit approved scope and compare verdict changes across runs or revisions (completed 2026-04-11)
-- [ ] **Phase 12: Large-Run Inspection and Operational Guardrails** - Keep larger draft analysis inspectable, filterable, traceable, and resumable
+- [x] **Phase 12: Large-Run Inspection and Operational Guardrails** - Keep larger draft analysis inspectable, filterable, traceable, and resumable (completed 2026-04-11)
 
 ## Phase Details
 
@@ -88,9 +88,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 12-01: Extend inspection payloads with draft scope, source spans, grouping, and progress summaries
-- [ ] 12-02: Add large-run filtering and grouping to the browser inspection surface
-- [ ] 12-03: Add operational guardrail tests and v1.1 milestone verification artifacts
+- [x] 12-01: Extend inspection payloads with draft scope, source spans, grouping, and progress summaries
+- [x] 12-02: Add large-run filtering and grouping to the browser inspection surface
+- [x] 12-03: Add operational guardrail tests and v1.1 milestone verification artifacts
 
 ## Progress
 
@@ -102,4 +102,4 @@ Phases execute in numeric order: 9 → 10 → 11 → 12
 | 9. Draft Container and Segment Scope Model | 3/3 | Complete | 2026-04-11 |
 | 10. Incremental Extraction and Review Resilience | 3/3 | Complete | 2026-04-11 |
 | 11. Scoped Checks and Revision Diff | 3/3 | Complete    | 2026-04-11 |
-| 12. Large-Run Inspection and Operational Guardrails | 0/3 | Planned | - |
+| 12. Large-Run Inspection and Operational Guardrails | 3/3 | Complete    | 2026-04-11 |
