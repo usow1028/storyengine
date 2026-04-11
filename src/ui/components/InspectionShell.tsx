@@ -265,6 +265,7 @@ export function InspectionShell({ data }: InspectionShellProps) {
       />
 
       <div className="inspection-layout">
+        {/* Verdict Triage remains the fixed outer rail even when filters regroup rows. */}
         <VerdictTriageList
           groups={visibleGroups}
           selectedVerdictId={selectedVerdictId}

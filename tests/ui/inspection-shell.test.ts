@@ -431,7 +431,7 @@ describe("InspectionShell", () => {
     );
   });
 
-  it("applies global filter state without replacing verdict-kind ordering", () => {
+  it("applies global filter state without replacing verdict-kind order", () => {
     const filtered = filterInspectionGroups(sampleInspectionResponse().groups, {
       ...DEFAULT_INSPECTION_FILTERS,
       groupKey: "chapter:draft-document:ui-inspection:chapter-2",
