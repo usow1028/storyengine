@@ -457,4 +457,254 @@ describe("ingestion session repository", () => {
       "draft-document:session:storage-draft"
     );
   });
+
+  it("appends extraction attempts and progressSummary for mixed outcomes", async () => {
+    const repository = new IngestionSessionRepository(pool);
+
+    await repository.createSession({
+      sessionId: "session:incremental",
+      storyId: "story:incremental",
+      revisionId: "revision:incremental:1",
+      draftTitle: "Incremental Draft",
+      defaultRulePackName: "reality-default",
+      inputKind: "full_draft",
+      rawText: "Alice waits.\n\nBob leaves.",
+      workflowState: "submitted",
+      promptFamily: "phase5-default",
+      modelName: "test-model",
+      lastVerdictRunId: null,
+      createdAt: "2026-04-11T06:30:00Z",
+      updatedAt: "2026-04-11T06:30:00Z",
+      lastCheckedAt: null
+    });
+
+    await repository.saveSegments("session:incremental", [
+      {
+        segmentId: "segment:session:incremental:1",
+        sessionId: "session:incremental",
+        sequence: 0,
+        label: "Segment 1",
+        startOffset: 0,
+        endOffset: 12,
+        segmentText: "Alice waits.",
+        workflowState: "submitted",
+        approvedAt: null
+      },
+      {
+        segmentId: "segment:session:incremental:2",
+        sessionId: "session:incremental",
+        sequence: 1,
+        label: "Segment 2",
+        startOffset: 14,
+        endOffset: 25,
+        segmentText: "Bob leaves.",
+        workflowState: "approved",
+        approvedAt: "2026-04-11T06:31:00Z"
+      }
+    ]);
+
+    await repository.saveExtractionBatch({
+      sessionId: "session:incremental",
+      segments: [
+        {
+          segmentId: "segment:session:incremental:1",
+          workflowState: "extracted",
+          candidates: [
+            {
+              candidateId: "candidate:incremental:1:success",
+              sessionId: "session:incremental",
+              segmentId: "segment:session:incremental:1",
+              candidateKind: "entity",
+              canonicalKey: "entity:alice",
+              confidence: 0.95,
+              reviewNeeded: false,
+              reviewNeededReason: null,
+              sourceSpanStart: 0,
+              sourceSpanEnd: 5,
+              provenanceDetail: { source: "fixture" },
+              extractedPayload: validCharacterPayload(
+                "Alice",
+                "story:incremental",
+                "revision:incremental:1"
+              ),
+              correctedPayload: null,
+              normalizedPayload: validCharacterPayload(
+                "Alice",
+                "story:incremental",
+                "revision:incremental:1"
+              )
+            }
+          ],
+          attempt: {
+            attemptId: "attempt:segment:session:incremental:1:1",
+            attemptNumber: 1,
+            requestKind: "full_session",
+            status: "success",
+            invalidatedApproval: false,
+            startedAt: "2026-04-11T06:31:00Z",
+            finishedAt: "2026-04-11T06:31:05Z",
+            errorSummary: null
+          }
+        },
+        {
+          segmentId: "segment:session:incremental:2",
+          workflowState: "approved",
+          candidates: [],
+          attempt: {
+            attemptId: "attempt:segment:session:incremental:2:1",
+            attemptNumber: 1,
+            requestKind: "full_session",
+            status: "success",
+            invalidatedApproval: false,
+            startedAt: "2026-04-11T06:31:00Z",
+            finishedAt: "2026-04-11T06:31:05Z",
+            errorSummary: null
+          }
+        }
+      ]
+    } as unknown as StructuredExtractionBatch);
+
+    await repository.saveExtractionBatch({
+      sessionId: "session:incremental",
+      segments: [
+        {
+          segmentId: "segment:session:incremental:1",
+          workflowState: "failed",
+          candidates: [],
+          attempt: {
+            attemptId: "attempt:segment:session:incremental:1:2",
+            attemptNumber: 2,
+            requestKind: "targeted_retry",
+            status: "failed",
+            invalidatedApproval: false,
+            startedAt: "2026-04-11T06:32:00Z",
+            finishedAt: "2026-04-11T06:32:02Z",
+            errorSummary: "Extractor failure for segment 1"
+          }
+        }
+      ]
+    } as unknown as StructuredExtractionBatch);
+
+    const snapshot = await repository.loadSessionSnapshot("session:incremental");
+
+    expect((snapshot as any).progressSummary.totalSegments).toBe(2);
+    expect((snapshot as any).progressSummary.failedSegments).toBe(1);
+    expect((snapshot.segments[0] as any).segment.attemptCount).toBe(2);
+    expect((snapshot.segments[0] as any).segment.lastAttemptStatus).toBe("failed");
+    expect((snapshot.segments[0] as any).attempts.map((attempt: { status: string }) => attempt.status)).toEqual([
+      "success",
+      "failed"
+    ]);
+  });
+
+  it("keeps previous candidates when a retry attempt fails", async () => {
+    const repository = new IngestionSessionRepository(pool);
+
+    await repository.createSession({
+      sessionId: "session:incremental",
+      storyId: "story:incremental",
+      revisionId: "revision:incremental:1",
+      draftTitle: "Incremental Draft",
+      defaultRulePackName: "reality-default",
+      inputKind: "full_draft",
+      rawText: "Alice waits.\n\nBob leaves.",
+      workflowState: "submitted",
+      promptFamily: "phase5-default",
+      modelName: "test-model",
+      lastVerdictRunId: null,
+      createdAt: "2026-04-11T06:35:00Z",
+      updatedAt: "2026-04-11T06:35:00Z",
+      lastCheckedAt: null
+    });
+
+    await repository.saveSegments("session:incremental", [
+      {
+        segmentId: "segment:session:incremental:1",
+        sessionId: "session:incremental",
+        sequence: 0,
+        label: "Segment 1",
+        startOffset: 0,
+        endOffset: 12,
+        segmentText: "Alice waits.",
+        workflowState: "submitted",
+        approvedAt: null
+      }
+    ]);
+
+    await repository.saveExtractionBatch({
+      sessionId: "session:incremental",
+      segments: [
+        {
+          segmentId: "segment:session:incremental:1",
+          workflowState: "extracted",
+          candidates: [
+            {
+              candidateId: "candidate:incremental:1:success",
+              sessionId: "session:incremental",
+              segmentId: "segment:session:incremental:1",
+              candidateKind: "entity",
+              canonicalKey: "entity:alice",
+              confidence: 0.95,
+              reviewNeeded: false,
+              reviewNeededReason: null,
+              sourceSpanStart: 0,
+              sourceSpanEnd: 5,
+              provenanceDetail: { source: "fixture" },
+              extractedPayload: validCharacterPayload(
+                "Alice",
+                "story:incremental",
+                "revision:incremental:1"
+              ),
+              correctedPayload: null,
+              normalizedPayload: validCharacterPayload(
+                "Alice",
+                "story:incremental",
+                "revision:incremental:1"
+              )
+            }
+          ],
+          attempt: {
+            attemptId: "attempt:segment:session:incremental:1:1",
+            attemptNumber: 1,
+            requestKind: "full_session",
+            status: "success",
+            invalidatedApproval: false,
+            startedAt: "2026-04-11T06:35:10Z",
+            finishedAt: "2026-04-11T06:35:12Z",
+            errorSummary: null
+          }
+        }
+      ]
+    } as unknown as StructuredExtractionBatch);
+
+    await repository.saveExtractionBatch({
+      sessionId: "session:incremental",
+      segments: [
+        {
+          segmentId: "segment:session:incremental:1",
+          workflowState: "failed",
+          candidates: [],
+          attempt: {
+            attemptId: "attempt:segment:session:incremental:1:2",
+            attemptNumber: 2,
+            requestKind: "targeted_retry",
+            status: "failed",
+            invalidatedApproval: false,
+            startedAt: "2026-04-11T06:35:20Z",
+            finishedAt: "2026-04-11T06:35:22Z",
+            errorSummary: "Extractor failure for segment 1"
+          }
+        }
+      ]
+    } as unknown as StructuredExtractionBatch);
+
+    const snapshot = await repository.loadSessionSnapshot("session:incremental");
+
+    expect(snapshot.segments[0]?.candidates[0]?.candidateId).toBe("candidate:incremental:1:success");
+    expect((snapshot.segments[0] as any).segment.lastFailureSummary).toBe("Extractor failure for segment 1");
+    expect((snapshot.segments[0] as any).attempts.map((attempt: { status: string }) => attempt.status)).toEqual([
+      "success",
+      "failed"
+    ]);
+  });
 });

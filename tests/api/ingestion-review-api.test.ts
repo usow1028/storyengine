@@ -311,4 +311,98 @@ describe("ingestion review api", () => {
 
     await app.close();
   });
+
+  it("serializes selected extract responses with attempt history and progress summary", async () => {
+    let retryMode: "initial" | "retry-fail" = "initial";
+    const llmClient = createConfiguredIngestionLlmClient({
+      modelName: "test-model",
+      extractor: async ({ segmentId }) => {
+        if (retryMode === "retry-fail" && segmentId.endsWith(":1")) {
+          throw new Error("Extractor failure for segment 1 that should surface in retry metadata.");
+        }
+
+        const name = segmentId.endsWith(":1") ? "Alice" : "Bob";
+        return {
+          candidates: [
+            {
+              candidateId: `${segmentId}:${retryMode}`,
+              candidateKind: "entity",
+              canonicalKey: `entity:${name.toLowerCase()}`,
+              confidence: 0.95,
+              sourceSpanStart: 0,
+              sourceSpanEnd: name.length,
+              provenanceDetail: { retryMode },
+              payload: correctedCharacterPayload(name, "session:incremental")
+            }
+          ]
+        };
+      }
+    });
+
+    const app = buildStoryGraphApi({
+      ingestionSessionRepository: repository,
+      storyRepository,
+      ruleRepository,
+      provenanceRepository,
+      verdictRepository,
+      verdictRunRepository,
+      llmClient,
+      generateId: () => "incremental",
+      now: () => "2026-04-11T06:40:00Z"
+    });
+
+    const submitResponse = await app.inject({
+      method: "POST",
+      url: "/api/ingestion/submissions",
+      payload: {
+        sessionId: "session:incremental",
+        submissionKind: "full_draft",
+        text: "Alice waits.\n\nBob leaves.",
+        storyId: "story:incremental",
+        revisionId: "revision:incremental:1"
+      }
+    });
+
+    expect(submitResponse.statusCode).toBe(201);
+    const submitted = submitResponse.json();
+
+    const fullExtractResponse = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/extract`,
+      payload: {}
+    });
+
+    expect(fullExtractResponse.statusCode).toBe(200);
+
+    const approveResponse = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/segments/segment:session:incremental:2/approve`
+    });
+
+    expect(approveResponse.statusCode).toBe(200);
+    const approved = approveResponse.json();
+    const approvedAt = approved.segments[1].approvedAt;
+
+    retryMode = "retry-fail";
+    const retryResponse = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/extract`,
+      payload: {
+        segmentIds: ["segment:session:incremental:1"],
+        allowApprovalReset: true
+      }
+    });
+
+    expect(retryResponse.statusCode).toBe(200);
+    const retried = retryResponse.json();
+    expect(retried.progressSummary.totalSegments).toBe(2);
+    expect(retried.progressSummary.failedSegments).toBe(1);
+    expect(retried.segments[1].approvedAt).toBe(approvedAt);
+    expect(retried.segments[0].attempts.map((attempt: { status: string }) => attempt.status)).toEqual([
+      "success",
+      "failed"
+    ]);
+
+    await app.close();
+  });
 });
