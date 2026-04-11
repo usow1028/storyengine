@@ -7,6 +7,7 @@ import {
   CanonicalEventSchema,
   CausalLinkSchema,
   CharacterStateBoundarySchema,
+  DraftSubmissionPlanSchema,
   IngestionCandidateRecordSchema,
   IngestionSessionRecordSchema,
   IngestionSegmentRecordSchema,
@@ -33,6 +34,7 @@ const PROMPT_FAMILY = "phase5-default";
 const LOW_CONFIDENCE_THRESHOLD = 0.75;
 const FALLBACK_SENTENCE_WINDOW = 5;
 const FALLBACK_MAX_SEGMENT_LENGTH = 1200;
+const SECTION_HEADING_PATTERN = /^(#+\s*)?(chapter|section)\b/i;
 
 const SubmitIngestionSessionInputSchema = z
   .object({
@@ -97,7 +99,7 @@ function createSessionTarget(input: SubmitIngestionSessionInput, sessionId: stri
 }
 
 function sanitizeBlock(text: string): string {
-  return text.trim().replace(/\r\n/g, "\n");
+  return normalizeDraftSourceText(text).trim();
 }
 
 function sentenceWindowSegments(text: string): Array<{ text: string; startOffset: number; endOffset: number }> {
@@ -189,11 +191,173 @@ function deriveSegmentLabel(segmentText: string, sequence: number, inputKind: Su
   }
 
   const firstLine = segmentText.split("\n")[0]?.trim() ?? "";
-  if (/^(#+\s+|scene\b|chapter\b)/i.test(firstLine)) {
+  if (/^(#+\s+|scene\b|chapter\b|section\b)/i.test(firstLine)) {
     return firstLine.replace(/^#+\s*/, "");
   }
 
   return `Segment ${sequence + 1}`;
+}
+
+function getSectionHeading(line: string): { label: string; sectionKind: "chapter" | "section" } | null {
+  const match = line.trim().match(SECTION_HEADING_PATTERN);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    label: line.trim().replace(/^#+\s*/, ""),
+    sectionKind: match[2]?.toLowerCase() === "chapter" ? "chapter" : "section"
+  };
+}
+
+export function normalizeDraftSourceText(rawText: string): string {
+  return rawText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
+export function planDraftSubmission(input: {
+  sessionId: string;
+  inputKind: SubmissionInputKind;
+  rawText: string;
+  storyId?: string;
+  revisionId?: string;
+  documentId?: string;
+  draftRevisionId?: string;
+  basedOnDraftRevisionId?: string | null;
+  draftTitle?: string;
+  createdAt?: string;
+}) {
+  const parsed = z
+    .object({
+      sessionId: IngestionSessionRecordSchema.shape.sessionId,
+      inputKind: SubmissionInputKindSchema,
+      rawText: z.string().min(1),
+      storyId: z.string().trim().min(1).optional(),
+      revisionId: z.string().trim().min(1).optional(),
+      documentId: z.string().trim().min(1).optional(),
+      draftRevisionId: z.string().trim().min(1).optional(),
+      basedOnDraftRevisionId: z.string().trim().min(1).nullable().optional(),
+      draftTitle: z.string().optional(),
+      createdAt: z.string().min(1).optional()
+    })
+    .parse(input);
+
+  const createdAt = parsed.createdAt ?? new Date().toISOString();
+  const documentId = parsed.documentId ?? `draft-document:${parsed.sessionId}`;
+  const draftRevisionId = parsed.draftRevisionId ?? `draft-revision:${parsed.sessionId}`;
+  const storyId = parsed.storyId ?? `story:draft:${parsed.sessionId}`;
+  const revisionId = parsed.revisionId ?? `revision:draft:${parsed.sessionId}`;
+  const normalizedRawText = normalizeDraftSourceText(parsed.rawText);
+
+  const baseSegments =
+    parsed.inputKind === "chunk"
+      ? [{ text: sanitizeBlock(normalizedRawText), startOffset: 0, endOffset: sanitizeBlock(normalizedRawText).length }]
+      : blockSegmentsFromDraft(normalizedRawText);
+
+  const plannedSegments = parsed.inputKind === "full_draft" && baseSegments.length <= 1
+    ? sentenceWindowSegments(normalizedRawText)
+    : baseSegments;
+
+  const sections: Array<{
+    sectionId: string;
+    draftRevisionId: string;
+    sectionKind: "chapter" | "section";
+    sequence: number;
+    label: string;
+    sourceTextRef: {
+      sourceKind: "ingestion_session_raw_text";
+      sessionId: string;
+      startOffset: number;
+      endOffset: number;
+      textNormalization: "lf";
+    };
+  }> = [];
+  let currentSectionId: string | null = null;
+
+  const segments = plannedSegments.map((segment, index) => {
+    const firstLine = segment.text.split("\n")[0]?.trim() ?? "";
+    const heading = getSectionHeading(firstLine);
+    const sourceTextRef = {
+      sourceKind: "ingestion_session_raw_text" as const,
+      sessionId: parsed.sessionId,
+      startOffset: segment.startOffset,
+      endOffset: segment.endOffset,
+      textNormalization: "lf" as const
+    };
+
+    if (heading) {
+      currentSectionId = `draft-section:${parsed.sessionId}:${sections.length + 1}`;
+      sections.push({
+        sectionId: currentSectionId,
+        draftRevisionId,
+        sectionKind: heading.sectionKind,
+        sequence: sections.length,
+        label: heading.label,
+        sourceTextRef
+      });
+    }
+
+    const segmentId = `segment:${parsed.sessionId}:${index + 1}`;
+    const draftPath = {
+      documentId,
+      draftRevisionId,
+      sectionId: currentSectionId,
+      segmentId,
+      sequence: index
+    };
+
+    const segmentRecord = IngestionSegmentRecordSchema.parse({
+      segmentId,
+      sessionId: parsed.sessionId,
+      sequence: index,
+      label: deriveSegmentLabel(segment.text, index, parsed.inputKind),
+      startOffset: segment.startOffset,
+      endOffset: segment.endOffset,
+      segmentText: segment.text,
+      draftRevisionId,
+      sectionId: currentSectionId,
+      draftPath,
+      sourceTextRef,
+      workflowState: "submitted",
+      approvedAt: null
+    });
+
+    return {
+      segment: segmentRecord,
+      sourceTextRef,
+      draftPath
+    };
+  });
+
+  return DraftSubmissionPlanSchema.parse({
+    document: {
+      documentId,
+      storyId,
+      title: parsed.draftTitle ?? "",
+      createdAt,
+      updatedAt: createdAt
+    },
+    revision: {
+      draftRevisionId,
+      documentId,
+      storyId,
+      revisionId,
+      basedOnDraftRevisionId: parsed.basedOnDraftRevisionId ?? null,
+      createdAt
+    },
+    sections,
+    segments,
+    checkScopes: [
+      {
+        scopeKind: "full_approved_draft",
+        scopeId: `draft-scope:${parsed.sessionId}:full`,
+        documentId,
+        draftRevisionId,
+        storyId,
+        revisionId
+      }
+    ],
+    normalizedRawText
+  });
 }
 
 export function segmentSubmissionText(input: {
@@ -209,29 +373,7 @@ export function segmentSubmissionText(input: {
     })
     .parse(input);
 
-  const rawText = parsed.rawText.replace(/\r\n/g, "\n");
-  const baseSegments =
-    parsed.inputKind === "chunk"
-      ? [{ text: sanitizeBlock(rawText), startOffset: 0, endOffset: sanitizeBlock(rawText).length }]
-      : blockSegmentsFromDraft(rawText);
-
-  const segments = parsed.inputKind === "full_draft" && baseSegments.length <= 1
-    ? sentenceWindowSegments(rawText)
-    : baseSegments;
-
-  return segments.map((segment, index) =>
-    IngestionSegmentRecordSchema.parse({
-      segmentId: `segment:${parsed.sessionId}:${index + 1}`,
-      sessionId: parsed.sessionId,
-      sequence: index,
-      label: deriveSegmentLabel(segment.text, index, parsed.inputKind),
-      startOffset: segment.startOffset,
-      endOffset: segment.endOffset,
-      segmentText: segment.text,
-      workflowState: "submitted",
-      approvedAt: null
-    })
-  );
+  return planDraftSubmission(parsed).segments.map(({ segment }) => segment);
 }
 
 function ensureRecord(value: unknown): Record<string, unknown> {
