@@ -707,4 +707,149 @@ describe("ingestion session repository", () => {
       "failed"
     ]);
   });
+
+  it("loads attempt history ordered by attemptNumber and preserves the latest snapshot after mixed retries", async () => {
+    const repository = new IngestionSessionRepository(pool);
+
+    await repository.createSession({
+      sessionId: "session:attempt-order",
+      storyId: "story:attempt-order",
+      revisionId: "revision:attempt-order:1",
+      draftTitle: "Attempt Order Draft",
+      defaultRulePackName: "reality-default",
+      inputKind: "chunk",
+      rawText: "Alice waits.",
+      workflowState: "submitted",
+      promptFamily: "phase5-default",
+      modelName: "test-model",
+      lastVerdictRunId: null,
+      createdAt: "2026-04-11T07:50:00Z",
+      updatedAt: "2026-04-11T07:50:00Z",
+      lastCheckedAt: null
+    });
+
+    await repository.saveSegments("session:attempt-order", [
+      {
+        segmentId: "segment:attempt-order:1",
+        sessionId: "session:attempt-order",
+        sequence: 0,
+        label: "Chunk 1",
+        startOffset: 0,
+        endOffset: 11,
+        segmentText: "Alice waits.",
+        workflowState: "submitted",
+        approvedAt: null
+      }
+    ]);
+
+    await repository.saveExtractionBatch({
+      sessionId: "session:attempt-order",
+      segments: [
+        {
+          segmentId: "segment:attempt-order:1",
+          workflowState: "extracted",
+          candidates: [
+            {
+              candidateId: "candidate:attempt-order:1",
+              sessionId: "session:attempt-order",
+              segmentId: "segment:attempt-order:1",
+              candidateKind: "entity",
+              canonicalKey: "entity:alice",
+              confidence: 0.95,
+              reviewNeeded: false,
+              reviewNeededReason: null,
+              sourceSpanStart: 0,
+              sourceSpanEnd: 5,
+              provenanceDetail: { source: "fixture", attemptNumber: 1 },
+              extractedPayload: validCharacterPayload("Alice", "story:attempt-order", "revision:attempt-order:1"),
+              correctedPayload: null,
+              normalizedPayload: validCharacterPayload("Alice", "story:attempt-order", "revision:attempt-order:1")
+            }
+          ],
+          attempt: {
+            attemptId: "attempt:segment:attempt-order:1:1",
+            attemptNumber: 1,
+            requestKind: "full_session",
+            status: "success",
+            invalidatedApproval: false,
+            startedAt: "2026-04-11T07:50:10Z",
+            finishedAt: "2026-04-11T07:50:12Z",
+            errorSummary: null
+          }
+        }
+      ]
+    } as unknown as StructuredExtractionBatch);
+
+    await repository.saveExtractionBatch({
+      sessionId: "session:attempt-order",
+      segments: [
+        {
+          segmentId: "segment:attempt-order:1",
+          workflowState: "failed",
+          candidates: [],
+          attempt: {
+            attemptId: "attempt:segment:attempt-order:1:2",
+            attemptNumber: 2,
+            requestKind: "targeted_retry",
+            status: "failed",
+            invalidatedApproval: false,
+            startedAt: "2026-04-11T07:50:20Z",
+            finishedAt: "2026-04-11T07:50:21Z",
+            errorSummary: "Transient extractor failure"
+          }
+        }
+      ]
+    } as unknown as StructuredExtractionBatch);
+
+    await repository.saveExtractionBatch({
+      sessionId: "session:attempt-order",
+      segments: [
+        {
+          segmentId: "segment:attempt-order:1",
+          workflowState: "extracted",
+          candidates: [
+            {
+              candidateId: "candidate:attempt-order:3",
+              sessionId: "session:attempt-order",
+              segmentId: "segment:attempt-order:1",
+              candidateKind: "entity",
+              canonicalKey: "entity:alice",
+              confidence: 0.96,
+              reviewNeeded: false,
+              reviewNeededReason: null,
+              sourceSpanStart: 0,
+              sourceSpanEnd: 5,
+              provenanceDetail: { source: "fixture", attemptNumber: 3 },
+              extractedPayload: {
+                ...validCharacterPayload("Alice", "story:attempt-order", "revision:attempt-order:1"),
+                aliases: ["Al"]
+              },
+              correctedPayload: null,
+              normalizedPayload: {
+                ...validCharacterPayload("Alice", "story:attempt-order", "revision:attempt-order:1"),
+                aliases: ["Al"]
+              }
+            }
+          ],
+          attempt: {
+            attemptId: "attempt:segment:attempt-order:1:3",
+            attemptNumber: 3,
+            requestKind: "targeted_retry",
+            status: "success",
+            invalidatedApproval: false,
+            startedAt: "2026-04-11T07:50:30Z",
+            finishedAt: "2026-04-11T07:50:32Z",
+            errorSummary: null
+          }
+        }
+      ]
+    } as unknown as StructuredExtractionBatch);
+
+    const snapshot = await repository.loadSessionSnapshot("session:attempt-order");
+
+    expect((snapshot.segments[0] as any).attempts.map((attempt: { attemptNumber: number }) => attempt.attemptNumber)).toEqual([1, 2, 3]);
+    expect((snapshot.segments[0] as any).attempts[1].status).toBe("failed");
+    expect(snapshot.segments[0]?.segment.lastAttemptStatus).toBe("success");
+    expect(snapshot.segments[0]?.candidates[0]?.candidateId).toBe("candidate:attempt-order:3");
+  });
 });
