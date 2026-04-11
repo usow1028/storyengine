@@ -14,6 +14,7 @@ import {
   StructuredExtractionBatchSchema,
   type IngestionCandidateRecord,
   type IngestionSessionRecord,
+  type IngestionSessionRecordInput,
   type IngestionSegmentSnapshot,
   type IngestionSessionSnapshot,
   type IngestionWorkflowState,
@@ -147,7 +148,7 @@ function assertSegmentBatchConsistency(batch: StructuredExtractionBatch): void {
 export class IngestionSessionRepository {
   constructor(private readonly client: SqlQueryable) {}
 
-  async createSession(input: IngestionSessionRecord): Promise<IngestionSessionRecord> {
+  async createSession(input: IngestionSessionRecordInput): Promise<IngestionSessionRecord> {
     const session = IngestionSessionRecordSchema.parse(input);
 
     await this.client.query(

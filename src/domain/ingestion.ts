@@ -5,6 +5,16 @@ import { RevisionIdSchema, StoryIdSchema } from "./ids.js";
 import { CanonicalEntitySchema } from "./entities.js";
 import { RulePackMetadataSchema, NormalizedExecutableRuleSchema } from "./rules.js";
 import { CharacterStateBoundarySchema } from "./state.js";
+import {
+  DraftCheckScopeSchema,
+  DraftDocumentSchema,
+  DraftRevisionIdSchema,
+  DraftRevisionSchema,
+  DraftSectionIdSchema,
+  DraftSectionSchema,
+  DraftSegmentPathSchema,
+  DraftSourceTextRefSchema
+} from "./drafts.js";
 
 const IngestionIdSchema = z.string().trim().min(1);
 const VerdictRunIdSchema = z.string().trim().min(1).describe("VerdictRunId");
@@ -68,6 +78,16 @@ export const IngestionSessionRecordSchema = z.object({
   storyId: StoryIdSchema.nullable().optional().default(null),
   revisionId: RevisionIdSchema.nullable().optional().default(null),
   draftTitle: z.string().default(""),
+  draftDocumentId: z.string().trim().min(1).nullable().optional().default(null),
+  draftRevisionId: z.lazy(() => DraftRevisionIdSchema).nullable().optional().default(null),
+  draft: z
+    .object({
+      document: z.lazy(() => DraftDocumentSchema),
+      revision: z.lazy(() => DraftRevisionSchema)
+    })
+    .nullable()
+    .optional()
+    .default(null),
   defaultRulePackName: z.string().default("reality-default"),
   inputKind: SubmissionInputKindSchema,
   rawText: z.string().min(1),
@@ -80,6 +100,7 @@ export const IngestionSessionRecordSchema = z.object({
   lastCheckedAt: z.string().nullable().optional().default(null)
 });
 export type IngestionSessionRecord = z.infer<typeof IngestionSessionRecordSchema>;
+export type IngestionSessionRecordInput = z.input<typeof IngestionSessionRecordSchema>;
 
 export const IngestionSegmentRecordSchema = z.object({
   segmentId: IngestionSegmentIdSchema,
@@ -89,10 +110,15 @@ export const IngestionSegmentRecordSchema = z.object({
   startOffset: z.number().int().nonnegative(),
   endOffset: z.number().int().nonnegative(),
   segmentText: z.string().min(1),
+  draftRevisionId: z.lazy(() => DraftRevisionIdSchema).nullable().optional().default(null),
+  sectionId: z.lazy(() => DraftSectionIdSchema).nullable().optional().default(null),
+  draftPath: z.lazy(() => DraftSegmentPathSchema).nullable().optional().default(null),
+  sourceTextRef: z.lazy(() => DraftSourceTextRefSchema).nullable().optional().default(null),
   workflowState: IngestionWorkflowStateSchema,
   approvedAt: z.string().nullable().optional().default(null)
 });
 export type IngestionSegmentRecord = z.infer<typeof IngestionSegmentRecordSchema>;
+export type IngestionSegmentRecordInput = z.input<typeof IngestionSegmentRecordSchema>;
 
 export const IngestionCandidateRecordSchema = z.object({
   candidateId: IngestionCandidateIdSchema,
@@ -195,6 +221,8 @@ export type IngestionSegmentSnapshot = z.infer<typeof IngestionSegmentSnapshotSc
 
 export const IngestionSessionSnapshotSchema = z.object({
   session: IngestionSessionRecordSchema,
-  segments: z.array(IngestionSegmentSnapshotSchema).default([])
+  segments: z.array(IngestionSegmentSnapshotSchema).default([]),
+  draftSections: z.array(z.lazy(() => DraftSectionSchema)).default([]),
+  checkScopes: z.array(z.lazy(() => DraftCheckScopeSchema)).default([])
 });
 export type IngestionSessionSnapshot = z.infer<typeof IngestionSessionSnapshotSchema>;
