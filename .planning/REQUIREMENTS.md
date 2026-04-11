@@ -10,9 +10,9 @@ Requirements for scaling the verified v1.0 consistency loop from scene-level rev
 
 ### Draft Ingestion
 
-- [ ] **DRAFT-01**: User can submit chapter-scale draft text as an ordered document, chapter, and segment set instead of a single scene blob.
+- [x] **DRAFT-01**: User can submit chapter-scale draft text as an ordered document, chapter, and segment set instead of a single scene blob.
 - [ ] **DRAFT-02**: Engine can compare consistency across multiple revisions of a longer draft.
-- [ ] **DRAFT-03**: System preserves stable segment labels, order, source offsets, and source text references from submission through inspection.
+- [x] **DRAFT-03**: System preserves stable segment labels, order, source offsets, and source text references from submission through inspection.
 - [ ] **DRAFT-04**: System can extract, retry, and report status for selected draft segments independently.
 
 ### Review and Canonical Promotion
@@ -51,9 +51,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DRAFT-01 | Phase 9, Phase 10 | Planned |
+| DRAFT-01 | Phase 9, Phase 10 | Validated in Phase 09 |
 | DRAFT-02 | Phase 11 | Planned |
-| DRAFT-03 | Phase 9, Phase 12 | Planned |
+| DRAFT-03 | Phase 9, Phase 12 | Validated in Phase 09 |
 | DRAFT-04 | Phase 10 | Planned |
 | REVIEW-01 | Phase 10 | Planned |
 | REVIEW-02 | Phase 10, Phase 12 | Planned |

@@ -17,7 +17,7 @@ StoryGraph v1.1 extends the shipped v1.0 consistency core from scene-level revie
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 9: Draft Container and Segment Scope Model** - Add document, revision, segment hierarchy, and check-scope contracts for chapter-scale drafts
+- [x] **Phase 9: Draft Container and Segment Scope Model** - Add document, revision, segment hierarchy, and check-scope contracts for chapter-scale drafts
 - [ ] **Phase 10: Incremental Extraction and Review Resilience** - Make extraction, retry, correction, and approval safe across many draft segments
 - [ ] **Phase 11: Scoped Checks and Revision Diff** - Run checks over explicit approved scope and compare verdict changes across runs or revisions
 - [ ] **Phase 12: Large-Run Inspection and Operational Guardrails** - Keep larger draft analysis inspectable, filterable, traceable, and resumable
@@ -39,7 +39,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 Plans:
 - [x] 09-01: Define draft document, revision, segment hierarchy, and scope schemas
 - [x] 09-02: Persist draft containers, revision lineage, segment metadata, and scope records
-- [ ] 09-03: Extend submit/read contracts and segmentation fixtures for chapter-scale drafts
+- [x] 09-03: Extend submit/read contracts and segmentation fixtures for chapter-scale drafts
 
 ### Phase 10: Incremental Extraction and Review Resilience
 **Goal**: Let writers extract, retry, review, correct, and approve draft segments independently without corrupting canonical state
@@ -99,7 +99,7 @@ Phases execute in numeric order: 9 → 10 → 11 → 12
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 9. Draft Container and Segment Scope Model | 0/3 | Planned | - |
+| 9. Draft Container and Segment Scope Model | 3/3 | Complete | 2026-04-11 |
 | 10. Incremental Extraction and Review Resilience | 0/3 | Planned | - |
 | 11. Scoped Checks and Revision Diff | 0/3 | Planned | - |
 | 12. Large-Run Inspection and Operational Guardrails | 0/3 | Planned | - |

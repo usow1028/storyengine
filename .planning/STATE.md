@@ -2,41 +2,41 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
-status: executing
-stopped_at: Completed 09-02-PLAN.md
-last_updated: "2026-04-11T03:47:03.270Z"
-last_activity: 2026-04-11
+status: ready
+stopped_at: Phase 09 complete
+last_updated: "2026-04-11T03:59:18Z"
+last_activity: "2026-04-11 -- Phase 09 completed"
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
-  percent: 67
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-10)
+See: .planning/PROJECT.md (updated 2026-04-11)
 
 **Core value:** Writers must be able to see exactly why a story is coherent or incoherent, and what explanation or prior condition would repair it.
-**Current focus:** Phase 09 execution — 09-03 API contracts and submit wiring
+**Current focus:** Phase 10 readiness — incremental extraction and review resilience
 
 ## Current Position
 
-Phase: 09 (draft-container-and-segment-scope-model) — EXECUTING
-Plan: 3 of 3
-Status: Executing Plan 09-03
-Last activity: 2026-04-11 -- Completed Plan 09-02 and advanced to 09-03
+Phase: 10
+Plan: Not started
+Status: Ready to execute Phase 10
+Last activity: 2026-04-11 -- Phase 09 verified and completed
 
-Progress: [███████░░░] 67%
+Progress: [----------] 0%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 25
+- Total plans completed: 28
 - Average duration: 8.1 min
 - Total execution time: 1.5 hours
 
@@ -50,11 +50,12 @@ Progress: [███████░░░] 67%
 | 04 | 2 | 39 min | 19.5 min |
 | 07 | 3 | - | - |
 | 08 | 6 | - | - |
+| 09 | 3 | 9 min | 3.0 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 9 min avg
-- Trend: Stable
+- Last 5 plans: 3.2 min avg
+- Trend: Improving
 
 | Phase 01 P01 | 6 min | 3 tasks | 12 files |
 | Phase 01 P02 | 9 min | 3 tasks | 10 files |
@@ -71,6 +72,7 @@ Progress: [███████░░░] 67%
 | Phase 06 P03 | 3 min | 2 tasks | 1 files |
 | Phase 09 P01 | 4 min | 3 tasks | 7 files |
 | Phase 09 P02 | 3 min | 2 tasks | 4 files |
+| Phase 09 P03 | 2 min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -89,11 +91,13 @@ Progress: [███████░░░] 67%
 - [Phase 09]: Preserve legacy segmentSubmissionText callers by routing them through planDraftSubmission. — Avoids maintaining a second segmentation path while draft metadata grows around the existing API.
 - [Phase 09]: Persist draft metadata additively and synthesize compatibility draft IDs for legacy rows. — Keeps old ingestion sessions loadable without destructive backfills while new rows use explicit draft tables.
 - [Phase 09]: Update source_text_ref whenever boundary edits move segment offsets. — Keeps stored source spans consistent with review-time offset corrections.
+- [Phase 09]: Expose draft metadata as additive API response fields while preserving existing submit/read fields. — Keeps current clients working while draft-aware consumers can use sections, scopes, draftPath, and sourceTextRef immediately.
+- [Phase 09]: Persist the draft plan before segment rows in submitIngestionSession. — Ensures the first read after submit already has stable draft IDs, section metadata, and scope records.
 
 ### Pending Todos
 
-- Execute `09-03` to extend submit/read contracts and preserve chunk compatibility through the API boundary.
-- Run phase-level verification, code review, and completion updates after the API wave lands.
+- Discuss and plan Phase 10 for incremental extraction, retry, and review resilience.
+- Execute Phase 10 using the draft/session/scope foundation delivered in Phase 09.
 
 ### Blockers/Concerns
 
@@ -101,6 +105,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-11T03:47:03.267Z
-Stopped at: Completed 09-02-PLAN.md
-Resume file: .planning/phases/09-draft-container-and-segment-scope-model/09-03-PLAN.md
+Last session: 2026-04-11T03:59:18Z
+Stopped at: Phase 09 complete
+Resume file: .planning/ROADMAP.md
