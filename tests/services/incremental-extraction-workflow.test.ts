@@ -251,4 +251,115 @@ describe("incremental extraction workflow", () => {
       message: "Approved segments require allowApprovalReset=true before retry."
     });
   });
+
+  it("runs a three-segment lifecycle with mixed success failure retry and reapproval", async () => {
+    let mode: "initial" | "fail-second" | "recover-second" | "reset-third" = "initial";
+    const llmClient = createConfiguredIngestionLlmClient({
+      modelName: "test-model",
+      extractor: async ({ segmentId }) => {
+        if (mode === "fail-second" && segmentId.endsWith(":2")) {
+          throw new Error("Second segment fails on the first retry.");
+        }
+
+        const name = segmentId.endsWith(":1")
+          ? "Alice"
+          : segmentId.endsWith(":2")
+            ? "Bob"
+            : "Cara";
+
+        return {
+          candidates: [
+            {
+              candidateId: `${segmentId}:${mode}`,
+              candidateKind: "entity" as const,
+              canonicalKey: `entity:${name.toLowerCase()}`,
+              confidence: 0.95,
+              sourceSpanStart: 0,
+              sourceSpanEnd: name.length,
+              provenanceDetail: { mode },
+              payload: validCharacterPayload(name, "session:lifecycle")
+            }
+          ]
+        };
+      }
+    });
+
+    await submitIngestionSession(
+      {
+        sessionId: "session:lifecycle",
+        submissionKind: "full_draft",
+        text: "Alice waits.\n\nBob hesitates.\n\nCara returns.",
+        storyId: "story:lifecycle",
+        revisionId: "revision:lifecycle:1"
+      },
+      {
+        ingestionSessionRepository,
+        llmClient,
+        now: () => "2026-04-11T07:40:00Z",
+        generateId: () => "lifecycle"
+      }
+    );
+
+    await extractIngestionSession("session:lifecycle", {
+      ingestionSessionRepository,
+      llmClient,
+      now: () => "2026-04-11T07:41:00Z",
+      generateId: () => "lifecycle"
+    });
+
+    await ingestionSessionRepository.approveSegment("session:lifecycle", "segment:session:lifecycle:3", {
+      approvedAt: "2026-04-11T07:42:00Z",
+      updatedAt: "2026-04-11T07:42:00Z"
+    });
+
+    mode = "fail-second";
+    await extractIngestionSession("session:lifecycle", {
+      ingestionSessionRepository,
+      llmClient,
+      now: () => "2026-04-11T07:43:00Z",
+      generateId: () => "lifecycle",
+      targetSegmentIds: ["segment:session:lifecycle:2"],
+      allowApprovalReset: true
+    });
+
+    mode = "recover-second";
+    const recoveredSecond = await extractIngestionSession("session:lifecycle", {
+      ingestionSessionRepository,
+      llmClient,
+      now: () => "2026-04-11T07:44:00Z",
+      generateId: () => "lifecycle",
+      targetSegmentIds: ["segment:session:lifecycle:2"],
+      allowApprovalReset: true
+    });
+
+    mode = "reset-third";
+    const reopenedThird = await extractIngestionSession("session:lifecycle", {
+      ingestionSessionRepository,
+      llmClient,
+      now: () => "2026-04-11T07:45:00Z",
+      generateId: () => "lifecycle",
+      targetSegmentIds: ["segment:session:lifecycle:3"],
+      allowApprovalReset: true
+    });
+
+    expect((recoveredSecond.segments[1] as any).attempts.map((attempt: { status: string }) => attempt.status)).toEqual([
+      "success",
+      "failed",
+      "success"
+    ]);
+    expect(reopenedThird.segments[2]?.segment.approvedAt).toBeNull();
+    expect(reopenedThird.segments[2]?.segment.stale).toBe(true);
+    expect(reopenedThird.segments[2]?.segment.staleReason).toBe("reextracted");
+
+    const reapprovedThird = await ingestionSessionRepository.approveSegment(
+      "session:lifecycle",
+      "segment:session:lifecycle:3",
+      {
+        approvedAt: "2026-04-11T07:46:00Z",
+        updatedAt: "2026-04-11T07:46:00Z"
+      }
+    );
+
+    expect(reapprovedThird.segmentWorkflowState).toBe("approved");
+  });
 });

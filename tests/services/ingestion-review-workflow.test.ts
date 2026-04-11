@@ -410,4 +410,140 @@ describe("ingestion review workflow", () => {
     expect(firstProvenance).toHaveLength(1);
     expect(secondProvenance).toHaveLength(1);
   });
+
+  it("keeps provenance stable across no-op reapproval and reset-based reapproval", async () => {
+    await ingestionSessionRepository.createSession({
+      sessionId: "session:provenance-reset",
+      storyId: "story:draft:session:provenance-reset",
+      revisionId: "revision:draft:session:provenance-reset",
+      draftTitle: "Provenance Reset Draft",
+      defaultRulePackName: "reality-default",
+      inputKind: "chunk",
+      rawText: "Alice waits.",
+      workflowState: "extracted",
+      promptFamily: "phase5-default",
+      modelName: "test-model",
+      lastVerdictRunId: null,
+      createdAt: "2026-04-11T07:20:00Z",
+      updatedAt: "2026-04-11T07:20:00Z",
+      lastCheckedAt: null
+    });
+
+    await ingestionSessionRepository.saveSegments("session:provenance-reset", [
+      {
+        segmentId: "segment:provenance-reset:1",
+        sessionId: "session:provenance-reset",
+        sequence: 0,
+        label: "Chunk 1",
+        startOffset: 0,
+        endOffset: 11,
+        segmentText: "Alice waits.",
+        workflowState: "extracted",
+        approvedAt: null
+      }
+    ]);
+
+    await ingestionSessionRepository.saveExtractionBatch({
+      sessionId: "session:provenance-reset",
+      segments: [
+        {
+          segmentId: "segment:provenance-reset:1",
+          workflowState: "extracted",
+          candidates: [
+            {
+              candidateId: "candidate:provenance-reset:1",
+              sessionId: "session:provenance-reset",
+              segmentId: "segment:provenance-reset:1",
+              candidateKind: "entity",
+              canonicalKey: "entity:alice",
+              confidence: 0.95,
+              reviewNeeded: false,
+              reviewNeededReason: null,
+              sourceSpanStart: 0,
+              sourceSpanEnd: 5,
+              provenanceDetail: { source: "fixture" },
+              extractedPayload: validCharacterPayload("Alice", "session:provenance-reset"),
+              correctedPayload: null,
+              normalizedPayload: validCharacterPayload("Alice", "session:provenance-reset")
+            }
+          ]
+        }
+      ]
+    });
+
+    await approveReviewedSegment("session:provenance-reset", "segment:provenance-reset:1", {
+      ingestionSessionRepository,
+      storyRepository,
+      ruleRepository,
+      provenanceRepository,
+      now: () => "2026-04-11T07:21:00Z"
+    });
+    const afterFirstApproval = await provenanceRepository.listByOwner("entity", "character:alice");
+
+    await approveReviewedSegment("session:provenance-reset", "segment:provenance-reset:1", {
+      ingestionSessionRepository,
+      storyRepository,
+      ruleRepository,
+      provenanceRepository,
+      now: () => "2026-04-11T07:22:00Z"
+    });
+    const afterNoOpApproval = await provenanceRepository.listByOwner("entity", "character:alice");
+
+    await ingestionSessionRepository.saveExtractionBatch({
+      sessionId: "session:provenance-reset",
+      segments: [
+        {
+          segmentId: "segment:provenance-reset:1",
+          workflowState: "needs_review",
+          candidates: [
+            {
+              candidateId: "candidate:provenance-reset:2",
+              sessionId: "session:provenance-reset",
+              segmentId: "segment:provenance-reset:1",
+              candidateKind: "entity",
+              canonicalKey: "entity:alice",
+              confidence: 0.95,
+              reviewNeeded: false,
+              reviewNeededReason: null,
+              sourceSpanStart: 0,
+              sourceSpanEnd: 5,
+              provenanceDetail: { source: "fixture", retry: true },
+              extractedPayload: {
+                ...validCharacterPayload("Alice", "session:provenance-reset"),
+                aliases: ["Al"]
+              },
+              correctedPayload: null,
+              normalizedPayload: {
+                ...validCharacterPayload("Alice", "session:provenance-reset"),
+                aliases: ["Al"]
+              }
+            }
+          ],
+          attempt: {
+            attemptId: "attempt:segment:provenance-reset:1:2",
+            attemptNumber: 2,
+            requestKind: "targeted_retry",
+            status: "success",
+            invalidatedApproval: true,
+            startedAt: "2026-04-11T07:23:00Z",
+            finishedAt: "2026-04-11T07:23:02Z",
+            errorSummary: null
+          }
+        }
+      ]
+    });
+
+    await approveReviewedSegment("session:provenance-reset", "segment:provenance-reset:1", {
+      ingestionSessionRepository,
+      storyRepository,
+      ruleRepository,
+      provenanceRepository,
+      now: () => "2026-04-11T07:24:00Z"
+    });
+    const afterResetReapproval = await provenanceRepository.listByOwner("entity", "character:alice");
+
+    expect(afterFirstApproval).toHaveLength(1);
+    expect(afterNoOpApproval).toHaveLength(1);
+    expect(afterResetReapproval).toHaveLength(2);
+  });
 });
