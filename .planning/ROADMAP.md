@@ -38,7 +38,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 - [x] 09-01: Define draft document, revision, segment hierarchy, and scope schemas
-- [ ] 09-02: Persist draft containers, revision lineage, segment metadata, and scope records
+- [x] 09-02: Persist draft containers, revision lineage, segment metadata, and scope records
 - [ ] 09-03: Extend submit/read contracts and segmentation fixtures for chapter-scale drafts
 
 ### Phase 10: Incremental Extraction and Review Resilience
