@@ -496,4 +496,125 @@ describe("ingestion review api", () => {
 
     await app.close();
   });
+
+  it("serializes append-only attempts and progressSummary during multi-segment retry flows", async () => {
+    const callCounts = new Map<string, number>();
+    let failSegment2Once = false;
+    const llmClient = createConfiguredIngestionLlmClient({
+      modelName: "test-model",
+      extractor: async ({ segmentId, sessionId }) => {
+        if (failSegment2Once && segmentId.endsWith(":2")) {
+          failSegment2Once = false;
+          throw new Error("Segment 2 fails once during retry.");
+        }
+
+        const attemptNumber = (callCounts.get(segmentId) ?? 0) + 1;
+        callCounts.set(segmentId, attemptNumber);
+        const name = segmentId.endsWith(":1")
+          ? "Alice"
+          : segmentId.endsWith(":2")
+            ? "Bob"
+            : "Cara";
+
+        return {
+          candidates: [
+            {
+              candidateId: `${segmentId}:attempt:${attemptNumber}`,
+              candidateKind: "entity",
+              canonicalKey: `entity:${name.toLowerCase()}`,
+              confidence: 0.95,
+              sourceSpanStart: 0,
+              sourceSpanEnd: name.length,
+              provenanceDetail: { attemptNumber },
+              payload: correctedCharacterPayload(name, sessionId)
+            }
+          ]
+        };
+      }
+    });
+
+    const app = buildStoryGraphApi({
+      ingestionSessionRepository: repository,
+      storyRepository,
+      ruleRepository,
+      provenanceRepository,
+      verdictRepository,
+      verdictRunRepository,
+      llmClient,
+      generateId: () => "api-lifecycle",
+      now: () => "2026-04-11T07:55:00Z"
+    });
+
+    const submitResponse = await app.inject({
+      method: "POST",
+      url: "/api/ingestion/submissions",
+      payload: {
+        sessionId: "session:api-lifecycle",
+        submissionKind: "full_draft",
+        text: "Alice waits.\n\nBob hesitates.\n\nCara returns.",
+        draftTitle: "API Lifecycle Draft"
+      }
+    });
+    expect(submitResponse.statusCode).toBe(201);
+    const submitted = submitResponse.json();
+
+    const extractResponse = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/extract`,
+      payload: {}
+    });
+    expect(extractResponse.statusCode).toBe(200);
+
+    const firstApprove = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/segments/segment:session:api-lifecycle:1/approve`
+    });
+    const thirdApprove = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/segments/segment:session:api-lifecycle:3/approve`
+    });
+    expect(firstApprove.statusCode).toBe(200);
+    expect(thirdApprove.statusCode).toBe(200);
+    const untouchedApprovedAt = firstApprove.json().segments[0].approvedAt;
+
+    failSegment2Once = true;
+    const failedRetry = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/extract`,
+      payload: {
+        segmentIds: ["segment:session:api-lifecycle:2"],
+        allowApprovalReset: true
+      }
+    });
+    expect(failedRetry.statusCode).toBe(200);
+    expect(failedRetry.json().progressSummary.failedSegments).toBe(1);
+
+    const recoveredRetry = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/extract`,
+      payload: {
+        segmentIds: ["segment:session:api-lifecycle:2"],
+        allowApprovalReset: true
+      }
+    });
+    expect(recoveredRetry.statusCode).toBe(200);
+    expect(recoveredRetry.json().progressSummary.failedSegments).toBe(0);
+
+    const reopenedThird = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/extract`,
+      payload: {
+        segmentIds: ["segment:session:api-lifecycle:3"],
+        allowApprovalReset: true
+      }
+    });
+    expect(reopenedThird.statusCode).toBe(200);
+    const reopenedPayload = reopenedThird.json();
+    expect(reopenedPayload.progressSummary.failedSegments).toBe(0);
+    expect(reopenedPayload.segments[0].approvedAt).toBe(untouchedApprovedAt);
+    expect(reopenedPayload.segments[2].attempts.length).toBe(2);
+    expect(reopenedPayload.segments[2].approvedAt).toBeNull();
+
+    await app.close();
+  });
 });

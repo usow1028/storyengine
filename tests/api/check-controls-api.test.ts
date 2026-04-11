@@ -578,6 +578,140 @@ describe("ingestion check controls api", () => {
     await app.close();
   });
 
+  it("passes manual check only after the last reopened segment is reapproved", async () => {
+    let failSegment2Once = false;
+    const llmClient = createConfiguredIngestionLlmClient({
+      modelName: "test-model",
+      extractor: async ({ segmentId, sessionId }) => {
+        if (failSegment2Once && segmentId.endsWith(":2")) {
+          failSegment2Once = false;
+          throw new Error("Segment 2 fails once during retry.");
+        }
+
+        const name = segmentId.endsWith(":1")
+          ? "Alice"
+          : segmentId.endsWith(":2")
+            ? "Bob"
+            : "Cara";
+        return {
+          candidates: [
+            {
+              candidateId: `${segmentId}:entity`,
+              candidateKind: "entity",
+              canonicalKey: `entity:${name.toLowerCase()}`,
+              confidence: 0.94,
+              sourceSpanStart: 0,
+              sourceSpanEnd: name.length,
+              provenanceDetail: { source: "api-test" },
+              payload: correctedCharacterPayload(name, sessionId)
+            }
+          ]
+        };
+      }
+    });
+
+    const app = buildStoryGraphApi({
+      ingestionSessionRepository: repository,
+      storyRepository,
+      ruleRepository,
+      provenanceRepository,
+      verdictRepository,
+      verdictRunRepository,
+      llmClient,
+      generateId: () => "three-segment-check",
+      now: () => "2026-04-11T08:00:00Z"
+    });
+
+    const submitResponse = await app.inject({
+      method: "POST",
+      url: "/api/ingestion/submissions",
+      payload: {
+        sessionId: "session:three-segment-check",
+        submissionKind: "full_draft",
+        text: "Alice waits.\n\nBob hesitates.\n\nCara returns.",
+        draftTitle: "Three Segment Check Draft"
+      }
+    });
+    expect(submitResponse.statusCode).toBe(201);
+    const submitted = submitResponse.json();
+
+    const extractResponse = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/extract`,
+      payload: {}
+    });
+    expect(extractResponse.statusCode).toBe(200);
+
+    for (const segmentId of [
+      "segment:session:three-segment-check:1",
+      "segment:session:three-segment-check:3"
+    ]) {
+      const approveResponse = await app.inject({
+        method: "POST",
+        url: `/api/ingestion/submissions/${submitted.sessionId}/segments/${segmentId}/approve`
+      });
+      expect(approveResponse.statusCode).toBe(200);
+    }
+
+    failSegment2Once = true;
+    const failedRetry = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/extract`,
+      payload: {
+        segmentIds: ["segment:session:three-segment-check:2"],
+        allowApprovalReset: true
+      }
+    });
+    expect(failedRetry.statusCode).toBe(200);
+
+    const recoveredRetry = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/extract`,
+      payload: {
+        segmentIds: ["segment:session:three-segment-check:2"],
+        allowApprovalReset: true
+      }
+    });
+    expect(recoveredRetry.statusCode).toBe(200);
+
+    const approveSecond = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/segments/segment:session:three-segment-check:2/approve`
+    });
+    expect(approveSecond.statusCode).toBe(200);
+
+    const reopenedThird = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/extract`,
+      payload: {
+        segmentIds: ["segment:session:three-segment-check:3"],
+        allowApprovalReset: true
+      }
+    });
+    expect(reopenedThird.statusCode).toBe(200);
+
+    const blockedCheck = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/check`
+    });
+    expect(blockedCheck.statusCode).toBe(409);
+
+    const reapproveThird = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/segments/segment:session:three-segment-check:3/approve`
+    });
+    expect(reapproveThird.statusCode).toBe(200);
+
+    const finalCheck = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/check`
+    });
+    expect(finalCheck.statusCode).toBe(200);
+    expect(finalCheck.json().workflowState).toBe("checked");
+
+    await app.close();
+  });
+
   it("does not require scope input for existing approved chunk checks", async () => {
     const llmClient = createConfiguredIngestionLlmClient({
       modelName: "test-model",
