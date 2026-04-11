@@ -251,6 +251,52 @@ function snapshotWithRerankedRepairs(runId: string): RunInspectionSnapshot {
   };
 }
 
+async function saveRevision(
+  pool: Pool,
+  input: { storyId: string; revisionId: string; createdAt: string }
+) {
+  await pool.query(
+    `
+      INSERT INTO story_revisions (revision_id, story_id, source_kind, created_at)
+      VALUES ($1, $2, $3, $4)
+    `,
+    [input.revisionId, input.storyId, "manual", input.createdAt]
+  );
+}
+
+function fullScope(input: {
+  scopeId: string;
+  storyId: string;
+  revisionId: string;
+  draftRevisionId: string;
+  comparisonScopeKey: string;
+}) {
+  return {
+    scopeId: input.scopeId,
+    scopeKind: "full_approved_draft" as const,
+    comparisonScopeKey: input.comparisonScopeKey,
+    segmentIds: ["segment:scope:1", "segment:scope:2"],
+    eventIds: ["event:airport", "event:meeting"],
+    sourceTextRefs: [
+      {
+        sourceKind: "ingestion_session_raw_text" as const,
+        sessionId: "session:scope",
+        startOffset: 0,
+        endOffset: 48,
+        textNormalization: "lf" as const
+      }
+    ],
+    payload: {
+      scopeKind: "full_approved_draft" as const,
+      scopeId: input.scopeId,
+      documentId: "draft-document:scope",
+      draftRevisionId: input.draftRevisionId,
+      storyId: input.storyId,
+      revisionId: input.revisionId
+    }
+  };
+}
+
 describe("inspection payload service", () => {
   let pool: Pool;
   let verdictRepository: VerdictRepository;
@@ -449,6 +495,151 @@ describe("inspection payload service", () => {
       addedFindingIds: expect.arrayContaining(["finding:hard"]),
       resolvedFindingIds: expect.arrayContaining(["finding:previous"])
     });
+  });
+
+  it("serializes finding-level diff labels for explicit base selectors", async () => {
+    const comparisonScopeKey = "full:draft-document:scope";
+    const baseRevisionId = "revision:base";
+
+    await saveRevision(pool, {
+      storyId: "story:test",
+      revisionId: baseRevisionId,
+      createdAt: "2026-04-10T09:50:00Z"
+    });
+
+    await verdictRunRepository.saveRun({
+      runId: "run:base-explicit",
+      storyId: "story:test",
+      revisionId: baseRevisionId,
+      triggerKind: "test",
+      createdAt: "2026-04-10T09:52:00Z",
+      scope: fullScope({
+        scopeId: "scope:base-explicit",
+        storyId: "story:test",
+        revisionId: baseRevisionId,
+        draftRevisionId: "draft-revision:base",
+        comparisonScopeKey
+      })
+    });
+    await verdictRepository.saveVerdict(
+      verdict({
+        verdictId: "verdict:base-explicit",
+        runId: "run:base-explicit",
+        verdictKind: "Repairable Gap",
+        category: "causal_gap",
+        explanation: "Base revision gap",
+        evidence: evidence({
+          findingId: "finding:base-explicit",
+          representativeChecker: "causality",
+          reasonCode: "missing_causal_link"
+        }),
+        createdAt: "2026-04-10T09:52:00Z"
+      })
+    );
+
+    await verdictRunRepository.saveRun({
+      runId: "run:previous-scoped",
+      storyId: "story:test",
+      revisionId: "revision:test",
+      triggerKind: "test",
+      createdAt: "2026-04-10T09:55:00Z",
+      scope: fullScope({
+        scopeId: "scope:previous-scoped",
+        storyId: "story:test",
+        revisionId: "revision:test",
+        draftRevisionId: "draft-revision:previous",
+        comparisonScopeKey
+      })
+    });
+    await verdictRepository.saveVerdict(
+      verdict({
+        verdictId: "verdict:previous-scoped",
+        runId: "run:previous-scoped",
+        verdictKind: "Soft Drift",
+        category: "provenance_gap",
+        explanation: "Previous scoped drift",
+        evidence: evidence({
+          findingId: "finding:previous-scoped",
+          representativeChecker: "character",
+          reasonCode: "motivation_drift"
+        }),
+        createdAt: "2026-04-10T09:55:00Z"
+      })
+    );
+
+    await verdictRunRepository.saveRun({
+      runId: "run:current-scoped",
+      storyId: "story:test",
+      revisionId: "revision:test",
+      previousRunId: "run:previous-scoped",
+      triggerKind: "test",
+      createdAt: "2026-04-10T10:00:00Z",
+      scope: fullScope({
+        scopeId: "scope:current-scoped",
+        storyId: "story:test",
+        revisionId: "revision:test",
+        draftRevisionId: "draft-revision:current",
+        comparisonScopeKey
+      })
+    });
+    await verdictRepository.saveVerdict(
+      verdict({
+        verdictId: "verdict:current-scoped",
+        runId: "run:current-scoped",
+        verdictKind: "Hard Contradiction",
+        category: "temporal_contradiction",
+        explanation: "Current scoped hard contradiction",
+        evidence: evidence(),
+        createdAt: "2026-04-10T10:00:00Z"
+      })
+    );
+    await verdictRunRepository.saveInspectionSnapshot(
+      "run:current-scoped",
+      snapshot("run:current-scoped")
+    );
+
+    const payload = await buildRunInspectionPayload({
+      runId: "run:current-scoped",
+      baseRevisionId,
+      verdictRunRepository,
+      verdictRepository
+    });
+
+    const parsed = RunInspectionResponseSchema.parse(payload);
+    expect(parsed.diff).toMatchObject({
+      currentRunId: "run:current-scoped",
+      previousRunId: "run:base-explicit",
+      currentScopeId: "scope:current-scoped",
+      baseScopeId: "scope:base-explicit"
+    });
+    expect(parsed.diff?.findingChanges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          changeKind: "added",
+          findingId: "finding:hard",
+          verdictKind: "Hard Contradiction",
+          scopeId: "scope:current-scoped",
+          comparisonScopeKey,
+          representativeChecker: "time",
+          reasonCode: "impossible_travel",
+          eventIds: ["event:meeting", "event:airport"]
+        }),
+        expect.objectContaining({
+          changeKind: "resolved",
+          findingId: "finding:base-explicit",
+          verdictKind: "Repairable Gap",
+          scopeId: "scope:base-explicit",
+          comparisonScopeKey,
+          representativeChecker: "causality",
+          reasonCode: "missing_causal_link"
+        })
+      ])
+    );
+    expect(parsed.diff?.findingChanges.length).toBeGreaterThan(0);
+    const serializedDiffItems = JSON.stringify(parsed.diff?.findingChanges);
+    expect(serializedDiffItems).not.toContain("repairCandidates");
+    expect(serializedDiffItems).not.toContain("rerankedRepairs");
+    expect(serializedDiffItems).not.toContain("representativePatternSummary");
   });
 
   it("uses soft-prior reranked repairs when displaying selected verdict repair order", async () => {
