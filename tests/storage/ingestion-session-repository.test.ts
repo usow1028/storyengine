@@ -7,6 +7,7 @@ import {
   IngestionSessionRepository
 } from "../../src/storage/index.js";
 import type { StructuredExtractionBatch } from "../../src/domain/index.js";
+import { planDraftSubmission } from "../../src/services/ingestion-session.js";
 
 function createTestClient() {
   const memory = newDb({ autoCreateForeignKeyIndices: true });
@@ -27,6 +28,18 @@ function validCharacterPayload(name: string, storyId = "story:test", revisionId 
     archetypes: [],
     defaultLoyalties: []
   };
+}
+
+function buildStorageDraftPlan() {
+  return planDraftSubmission({
+    sessionId: "session:storage-draft",
+    inputKind: "full_draft",
+    rawText: "Chapter 1\nAlice waits.\n\nSection 2\nBob arrives.",
+    storyId: "story:storage-draft",
+    revisionId: "revision:storage-draft",
+    draftTitle: "Storage Draft",
+    createdAt: "2026-04-11T03:50:00Z"
+  });
 }
 
 describe("ingestion session repository", () => {
@@ -272,5 +285,176 @@ describe("ingestion session repository", () => {
 
     const approvedSegments = await repository.listApprovedSegments("session:review");
     expect(approvedSegments).toHaveLength(2);
+  });
+
+  it("persists draft containers sections source refs and scopes", async () => {
+    const repository = new IngestionSessionRepository(pool);
+    const plan = buildStorageDraftPlan();
+
+    await repository.createSession({
+      sessionId: "session:storage-draft",
+      storyId: "story:storage-draft",
+      revisionId: "revision:storage-draft",
+      draftTitle: "Storage Draft",
+      defaultRulePackName: "reality-default",
+      inputKind: "full_draft",
+      rawText: plan.normalizedRawText,
+      workflowState: "submitted",
+      promptFamily: "phase5-default",
+      modelName: "test-model",
+      lastVerdictRunId: null,
+      createdAt: "2026-04-11T03:50:00Z",
+      updatedAt: "2026-04-11T03:50:00Z",
+      lastCheckedAt: null
+    });
+
+    await repository.saveDraftPlan("session:storage-draft", plan);
+    await repository.saveSegments(
+      "session:storage-draft",
+      plan.segments.map(({ segment }) => segment)
+    );
+
+    const snapshot = await repository.loadSessionSnapshot("session:storage-draft");
+
+    expect(snapshot.session.draftDocumentId).toBe("draft-document:session:storage-draft");
+    expect(snapshot.session.draftRevisionId).toBe("draft-revision:session:storage-draft");
+    expect(snapshot.draftSections).toHaveLength(2);
+    expect(snapshot.checkScopes[0]?.scopeKind).toBe("full_approved_draft");
+    expect(snapshot.segments[0]?.segment.sourceTextRef?.textNormalization).toBe("lf");
+  });
+
+  it("loads legacy ingestion rows with synthesized draft metadata", async () => {
+    const repository = new IngestionSessionRepository(pool);
+
+    await pool.query(
+      `
+        INSERT INTO ingestion_sessions (
+          session_id,
+          story_id,
+          revision_id,
+          draft_title,
+          draft_document_id,
+          draft_revision_id,
+          default_rule_pack_name,
+          input_kind,
+          raw_text,
+          workflow_state,
+          prompt_family,
+          model_name,
+          last_verdict_run_id,
+          created_at,
+          updated_at,
+          last_checked_at
+        )
+        VALUES ($1, $2, $3, $4, NULL, NULL, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      `,
+      [
+        "session:legacy",
+        "story:legacy",
+        "revision:legacy",
+        "Legacy Draft",
+        "reality-default",
+        "full_draft",
+        "Alice waits.\n\nBob arrives.",
+        "submitted",
+        "phase5-default",
+        "test-model",
+        null,
+        "2026-04-11T03:51:00Z",
+        "2026-04-11T03:51:00Z",
+        null
+      ]
+    );
+
+    await pool.query(
+      `
+        INSERT INTO ingestion_segments (
+          segment_id,
+          session_id,
+          sequence,
+          label,
+          start_offset,
+          end_offset,
+          segment_text,
+          draft_revision_id,
+          section_id,
+          draft_path,
+          source_text_ref,
+          workflow_state,
+          approved_at
+        )
+        VALUES (
+          $1, $2, $3, $4, $5, $6, $7, NULL, NULL,
+          NULL, NULL, $8, $9
+        )
+      `,
+      [
+        "segment:legacy:1",
+        "session:legacy",
+        0,
+        "Segment 1",
+        0,
+        12,
+        "Alice waits.",
+        "submitted",
+        null
+      ]
+    );
+
+    const snapshot = await repository.loadSessionSnapshot("session:legacy");
+
+    expect(snapshot.session.draftDocumentId).toBe("draft-document:session:legacy");
+    expect(snapshot.session.draftRevisionId).toBe("draft-revision:session:legacy");
+    expect(snapshot.session.draft?.document.documentId).toBe("draft-document:session:legacy");
+    expect(snapshot.session.draft?.revision.draftRevisionId).toBe("draft-revision:session:legacy");
+  });
+
+  it("keeps source refs in sync with boundary edits", async () => {
+    const repository = new IngestionSessionRepository(pool);
+    const plan = buildStorageDraftPlan();
+
+    await repository.createSession({
+      sessionId: "session:storage-draft",
+      storyId: "story:storage-draft",
+      revisionId: "revision:storage-draft",
+      draftTitle: "Storage Draft",
+      defaultRulePackName: "reality-default",
+      inputKind: "full_draft",
+      rawText: plan.normalizedRawText,
+      workflowState: "submitted",
+      promptFamily: "phase5-default",
+      modelName: "test-model",
+      lastVerdictRunId: null,
+      createdAt: "2026-04-11T03:50:00Z",
+      updatedAt: "2026-04-11T03:50:00Z",
+      lastCheckedAt: null
+    });
+
+    await repository.saveDraftPlan("session:storage-draft", plan);
+    await repository.saveSegments(
+      "session:storage-draft",
+      plan.segments.map(({ segment }) => segment)
+    );
+
+    const patched = await repository.applySegmentPatch(
+      "session:storage-draft",
+      "segment:session:storage-draft:1",
+      {
+        boundary: {
+          startOffset: 1,
+          endOffset: 23
+        },
+        candidateCorrections: []
+      },
+      {
+        updatedAt: "2026-04-11T03:52:00Z"
+      }
+    );
+
+    expect(patched.segments[0]?.segment.sourceTextRef?.startOffset).toBe(1);
+    expect(patched.segments[0]?.segment.sourceTextRef?.endOffset).toBe(23);
+    expect(patched.segments[0]?.segment.draftPath?.documentId).toBe(
+      "draft-document:session:storage-draft"
+    );
   });
 });
