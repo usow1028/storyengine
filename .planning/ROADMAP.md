@@ -18,7 +18,7 @@ StoryGraph v1.1 extends the shipped v1.0 consistency core from scene-level revie
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 9: Draft Container and Segment Scope Model** - Add document, revision, segment hierarchy, and check-scope contracts for chapter-scale drafts
-- [ ] **Phase 10: Incremental Extraction and Review Resilience** - Make extraction, retry, correction, and approval safe across many draft segments
+- [x] **Phase 10: Incremental Extraction and Review Resilience** - Make extraction, retry, correction, and approval safe across many draft segments (completed 2026-04-11)
 - [ ] **Phase 11: Scoped Checks and Revision Diff** - Run checks over explicit approved scope and compare verdict changes across runs or revisions
 - [ ] **Phase 12: Large-Run Inspection and Operational Guardrails** - Keep larger draft analysis inspectable, filterable, traceable, and resumable
 
@@ -54,9 +54,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 10-01: Add selected segment extraction, retry state, and failure reporting
-- [ ] 10-02: Harden partial review, correction, and canonical promotion guardrails
-- [ ] 10-03: Add multi-segment lifecycle tests for extraction, retry, partial approval, and provenance
+- [x] 10-01: Add selected segment extraction, retry state, and failure reporting
+- [x] 10-02: Harden partial review, correction, and canonical promotion guardrails
+- [x] 10-03: Add multi-segment lifecycle tests for extraction, retry, partial approval, and provenance
 
 ### Phase 11: Scoped Checks and Revision Diff
 **Goal**: Run deterministic checks over explicit approved draft scope and compare consistency changes across revisions or runs
@@ -100,6 +100,6 @@ Phases execute in numeric order: 9 → 10 → 11 → 12
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 9. Draft Container and Segment Scope Model | 3/3 | Complete | 2026-04-11 |
-| 10. Incremental Extraction and Review Resilience | 0/3 | Planned | - |
+| 10. Incremental Extraction and Review Resilience | 3/3 | Complete | 2026-04-11 |
 | 11. Scoped Checks and Revision Diff | 0/3 | Planned | - |
 | 12. Large-Run Inspection and Operational Guardrails | 0/3 | Planned | - |

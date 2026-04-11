@@ -13,12 +13,12 @@ Requirements for scaling the verified v1.0 consistency loop from scene-level rev
 - [x] **DRAFT-01**: User can submit chapter-scale draft text as an ordered document, chapter, and segment set instead of a single scene blob.
 - [ ] **DRAFT-02**: Engine can compare consistency across multiple revisions of a longer draft.
 - [x] **DRAFT-03**: System preserves stable segment labels, order, source offsets, and source text references from submission through inspection.
-- [ ] **DRAFT-04**: System can extract, retry, and report status for selected draft segments independently.
+- [x] **DRAFT-04**: System can extract, retry, and report status for selected draft segments independently.
 
 ### Review and Canonical Promotion
 
-- [ ] **REVIEW-01**: User can approve safe segments while leaving uncertain or failed segments unresolved without corrupting canonical state.
-- [ ] **REVIEW-02**: User can see which entities, events, state boundaries, causal links, and rules came from each draft segment before promotion.
+- [x] **REVIEW-01**: User can approve safe segments while leaving uncertain or failed segments unresolved without corrupting canonical state.
+- [x] **REVIEW-02**: User can see which entities, events, state boundaries, causal links, and rules came from each draft segment before promotion.
 
 ### Scoped Checking and Diffing
 
@@ -29,7 +29,7 @@ Requirements for scaling the verified v1.0 consistency loop from scene-level rev
 
 - [ ] **INSPECT-01**: User can inspect larger draft-check runs through grouped and filterable verdict output without losing deterministic evidence.
 - [ ] **TRACE-01**: Every verdict, repair, and diff item remains traceable to canonical IDs, rule IDs, and original draft source spans.
-- [ ] **OPER-01**: Long-running or partially failed draft analysis reports resumable progress and failure state instead of appearing complete.
+- [x] **OPER-01**: Long-running or partially failed draft analysis reports resumable progress and failure state instead of appearing complete.
 
 ## Out of Scope
 
@@ -51,17 +51,17 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DRAFT-01 | Phase 9, Phase 10 | Validated in Phase 09 |
+| DRAFT-01 | Phase 9, Phase 10 | Validated in Phase 09 and Phase 10 |
 | DRAFT-02 | Phase 11 | Planned |
 | DRAFT-03 | Phase 9, Phase 12 | Validated in Phase 09 |
-| DRAFT-04 | Phase 10 | Planned |
-| REVIEW-01 | Phase 10 | Planned |
-| REVIEW-02 | Phase 10, Phase 12 | Planned |
+| DRAFT-04 | Phase 10 | Validated in Phase 10 |
+| REVIEW-01 | Phase 10 | Validated in Phase 10 |
+| REVIEW-02 | Phase 10, Phase 12 | Validated in Phase 10 |
 | CHECK-01 | Phase 11 | Planned |
 | DIFF-01 | Phase 11 | Planned |
 | INSPECT-01 | Phase 12 | Planned |
 | TRACE-01 | Phase 11, Phase 12 | Planned |
-| OPER-01 | Phase 10, Phase 12 | Planned |
+| OPER-01 | Phase 10, Phase 12 | Validated in Phase 10 |
 
 **Coverage:**
 - v1.1 requirements: 11 total
