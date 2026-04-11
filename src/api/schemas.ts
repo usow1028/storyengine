@@ -26,6 +26,22 @@ export const InspectionRunParamsSchema = z.object({
 });
 export type InspectionRunParams = z.infer<typeof InspectionRunParamsSchema>;
 
+export const InspectionRunQuerySchema = z
+  .object({
+    baseRunId: z.string().trim().min(1).optional(),
+    baseRevisionId: z.string().trim().min(1).optional()
+  })
+  .superRefine((value, ctx) => {
+    if (value.baseRunId && value.baseRevisionId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Provide either baseRunId or baseRevisionId, not both.",
+        path: ["baseRunId"]
+      });
+    }
+  });
+export type InspectionRunQuery = z.infer<typeof InspectionRunQuerySchema>;
+
 export const SubmitIngestionRequestSchema = z
   .object({
     submissionKind: SubmissionInputKindSchema,

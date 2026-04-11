@@ -4,7 +4,11 @@ import type { Pool } from "pg";
 
 import { buildStoryGraphApi } from "../../src/api/app.js";
 import { RunInspectionResponseSchema } from "../../src/api/schemas.js";
-import type { RunInspectionSnapshot, VerdictRecord } from "../../src/domain/index.js";
+import type {
+  RunInspectionSnapshot,
+  VerdictRecord,
+  VerdictRunScope
+} from "../../src/domain/index.js";
 import {
   applyCanonicalSchema,
   IngestionSessionRepository,
@@ -140,6 +144,39 @@ function inspectionSnapshot(): RunInspectionSnapshot {
   };
 }
 
+function fullInspectionScope(input: {
+  scopeId: string;
+  storyId: string;
+  revisionId: string;
+  documentId: string;
+  draftRevisionId: string;
+}): VerdictRunScope {
+  return {
+    scopeId: input.scopeId,
+    scopeKind: "full_approved_draft",
+    comparisonScopeKey: `full:${input.documentId}`,
+    segmentIds: ["segment:inspection:1", "segment:inspection:2"],
+    eventIds: ["event:airport", "event:meeting"],
+    sourceTextRefs: [
+      {
+        sourceKind: "ingestion_session_raw_text",
+        sessionId: "session:inspection",
+        startOffset: 0,
+        endOffset: 28,
+        textNormalization: "lf"
+      }
+    ],
+    payload: {
+      scopeKind: "full_approved_draft",
+      scopeId: input.scopeId,
+      documentId: input.documentId,
+      draftRevisionId: input.draftRevisionId,
+      storyId: input.storyId,
+      revisionId: input.revisionId
+    }
+  };
+}
+
 describe("inspection api", () => {
   let pool: Pool;
   let storyRepository: StoryRepository;
@@ -161,7 +198,14 @@ describe("inspection api", () => {
       storyId: "story:test",
       revisionId: "revision:test",
       triggerKind: "test",
-      createdAt: "2026-04-10T11:00:00Z"
+      createdAt: "2026-04-10T11:00:00Z",
+      scope: fullInspectionScope({
+        scopeId: "scope:api-current",
+        storyId: "story:test",
+        revisionId: "revision:test",
+        documentId: "draft-document:api-inspection",
+        draftRevisionId: "draft-revision:api-inspection"
+      })
     });
     await verdictRepository.saveVerdict(hardVerdict());
     await verdictRunRepository.saveInspectionSnapshot("run:api-current", inspectionSnapshot());
@@ -256,6 +300,181 @@ describe("inspection api", () => {
     expect(response.body).not.toContain("SELECT");
     expect(response.body).not.toContain("inspection_snapshot");
     expect(response.body).not.toContain("/home/");
+
+    await app.close();
+  });
+
+  it("returns scope-labeled findingChanges for an explicit baseRunId", async () => {
+    const app = buildApp();
+
+    await verdictRunRepository.saveRun({
+      runId: "run:api-base",
+      storyId: "story:test",
+      revisionId: "revision:test",
+      triggerKind: "test",
+      createdAt: "2026-04-10T10:50:00Z",
+      scope: fullInspectionScope({
+        scopeId: "scope:api-base",
+        storyId: "story:test",
+        revisionId: "revision:test",
+        documentId: "draft-document:api-inspection",
+        draftRevisionId: "draft-revision:api-base"
+      })
+    });
+    await verdictRepository.saveVerdict({
+      verdictId: "verdict:api-base",
+      runId: "run:api-base",
+      storyId: "story:test",
+      revisionId: "revision:test",
+      verdictKind: "Repairable Gap",
+      category: "causal_gap",
+      explanation: "Base run gap.",
+      evidence: {
+        findingId: "finding:api-base",
+        representativeChecker: "causality",
+        reasonCode: "missing_causal_link",
+        eventIds: ["event:airport"],
+        stateBoundaryIds: ["boundary:a"],
+        ruleVersionIds: ["ruleversion:reality"],
+        provenanceIds: ["provenance:api-base"],
+        eventSummaries: [
+          {
+            eventId: "event:airport",
+            eventType: "airport",
+            sequence: 1,
+            abstract: false,
+            placeId: "place:seoul",
+            actorIds: ["character:a"],
+            targetIds: [],
+            timeRelation: "after"
+          }
+        ],
+        stateSummaries: [],
+        ruleSummaries: [],
+        conflictPath: ["event:airport"],
+        missingPremises: [],
+        supportingFindings: [],
+        notEvaluated: []
+      },
+      createdAt: "2026-04-10T10:50:00Z"
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/inspection/runs/run%3Aapi-current?baseRunId=run%3Aapi-base"
+    });
+
+    expect(response.statusCode).toBe(200);
+    const parsed = RunInspectionResponseSchema.parse(response.json());
+    expect(parsed.diff).toMatchObject({
+      currentRunId: "run:api-current",
+      previousRunId: "run:api-base",
+      currentScopeId: "scope:api-current",
+      baseScopeId: "scope:api-base",
+      currentComparisonScopeKey: "full:draft-document:api-inspection",
+      baseComparisonScopeKey: "full:draft-document:api-inspection"
+    });
+    expect(parsed.diff?.findingChanges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          changeKind: "added",
+          findingId: "finding:api-hard",
+          scopeId: "scope:api-current",
+          comparisonScopeKey: "full:draft-document:api-inspection"
+        }),
+        expect.objectContaining({
+          changeKind: "resolved",
+          findingId: "finding:api-base",
+          scopeId: "scope:api-base",
+          comparisonScopeKey: "full:draft-document:api-inspection"
+        })
+      ])
+    );
+    expect(parsed.diff?.findingChanges.length).toBeGreaterThan(0);
+    expect(parsed.diff?.previousRunId).toBe("run:api-base");
+
+    await app.close();
+  });
+
+  it("returns 409 when explicit baseRevisionId has no comparable scoped run", async () => {
+    const app = buildApp();
+
+    await pool.query(
+      `
+        INSERT INTO story_revisions (revision_id, story_id, source_kind, created_at)
+        VALUES ($1, $2, $3, $4)
+      `,
+      ["revision:base", "story:test", "manual", "2026-04-10T10:49:30Z"]
+    );
+
+    await verdictRunRepository.saveRun({
+      runId: "run:api-base-incompatible",
+      storyId: "story:test",
+      revisionId: "revision:base",
+      triggerKind: "test",
+      createdAt: "2026-04-10T10:51:00Z",
+      scope: {
+        scopeId: "scope:api-base-incompatible",
+        scopeKind: "section",
+        comparisonScopeKey: "section:draft-document:api-inspection:chapter:0",
+        segmentIds: ["segment:inspection:1"],
+        eventIds: ["event:airport"],
+        sourceTextRefs: [
+          {
+            sourceKind: "ingestion_session_raw_text",
+            sessionId: "session:inspection",
+            startOffset: 0,
+            endOffset: 13,
+            textNormalization: "lf"
+          }
+        ],
+        payload: {
+          scopeKind: "section",
+          scopeId: "scope:api-base-incompatible",
+          documentId: "draft-document:api-inspection",
+          draftRevisionId: "draft-revision:api-base",
+          sectionId: "draft-section:inspection:1"
+        }
+      }
+    });
+    await verdictRepository.saveVerdict({
+      verdictId: "verdict:api-base-incompatible",
+      runId: "run:api-base-incompatible",
+      storyId: "story:test",
+      revisionId: "revision:base",
+      verdictKind: "Soft Drift",
+      category: "provenance_gap",
+      explanation: "Scoped base run mismatch.",
+      evidence: {
+        findingId: "finding:api-base-incompatible",
+        representativeChecker: "character",
+        reasonCode: "motivation_drift",
+        eventIds: ["event:airport"],
+        stateBoundaryIds: ["boundary:a"],
+        ruleVersionIds: ["ruleversion:reality"],
+        provenanceIds: ["provenance:api-base-incompatible"],
+        eventSummaries: [],
+        stateSummaries: [],
+        ruleSummaries: [],
+        conflictPath: ["event:airport"],
+        missingPremises: [],
+        supportingFindings: [],
+        notEvaluated: []
+      },
+      createdAt: "2026-04-10T10:51:00Z"
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/inspection/runs/run%3Aapi-current?baseRevisionId=revision%3Abase"
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({
+      message: "Inspection comparison is incompatible."
+    });
+    expect(response.body).not.toContain("SELECT");
+    expect(response.body).not.toContain("stack");
 
     await app.close();
   });
