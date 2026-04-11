@@ -971,6 +971,24 @@ export class IngestionSessionRepository {
     const nextLabel = patch.boundary?.label ?? segmentSnapshot.segment.label;
     const nextStartOffset = patch.boundary?.startOffset ?? segmentSnapshot.segment.startOffset;
     const nextEndOffset = patch.boundary?.endOffset ?? segmentSnapshot.segment.endOffset;
+    const boundaryChanged =
+      (typeof patch.boundary?.label !== "undefined" && patch.boundary.label !== segmentSnapshot.segment.label) ||
+      (typeof patch.boundary?.startOffset !== "undefined" &&
+        patch.boundary.startOffset !== segmentSnapshot.segment.startOffset) ||
+      (typeof patch.boundary?.endOffset !== "undefined" &&
+        patch.boundary.endOffset !== segmentSnapshot.segment.endOffset);
+    const materialChange = boundaryChanged || patch.candidateCorrections.length > 0;
+    const wasApproved = Boolean(segmentSnapshot.segment.approvedAt);
+    const nextApprovedAt = wasApproved && materialChange ? null : segmentSnapshot.segment.approvedAt;
+    const nextWorkflowState =
+      wasApproved && !materialChange ? "approved" : "needs_review";
+    const nextStale = wasApproved && materialChange ? true : segmentSnapshot.segment.stale;
+    const nextStaleReason =
+      wasApproved && materialChange
+        ? boundaryChanged
+          ? "boundary_changed"
+          : "review_patch"
+        : segmentSnapshot.segment.staleReason;
     const nextSourceTextRef =
       segmentSnapshot.segment.sourceTextRef ||
       segmentSnapshot.segment.draftRevisionId ||
@@ -997,7 +1015,10 @@ export class IngestionSessionRepository {
               start_offset = $4,
               end_offset = $5,
               workflow_state = $6,
-              source_text_ref = CAST($7 AS jsonb)
+              source_text_ref = CAST($7 AS jsonb),
+              approved_at = $8,
+              stale = $9,
+              stale_reason = $10
           WHERE session_id = $1 AND segment_id = $2
         `,
         [
@@ -1006,8 +1027,11 @@ export class IngestionSessionRepository {
           nextLabel,
           nextStartOffset,
           nextEndOffset,
-          segmentSnapshot.segment.approvedAt ? "approved" : "needs_review",
-          asJson(nextSourceTextRef)
+          nextWorkflowState,
+          asJson(nextSourceTextRef),
+          nextApprovedAt,
+          nextStale,
+          nextStaleReason
         ]
       );
 
@@ -1090,7 +1114,9 @@ export class IngestionSessionRepository {
       `
         UPDATE ingestion_segments
         SET workflow_state = $3,
-            approved_at = $4
+            approved_at = $4,
+            stale = FALSE,
+            stale_reason = NULL
         WHERE session_id = $1 AND segment_id = $2
       `,
       [sessionId, segmentId, "approved", approvedAt]

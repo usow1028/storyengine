@@ -275,6 +275,16 @@ export async function approveReviewedSegment(
 ): Promise<IngestionSessionSnapshot> {
   const snapshot = await dependencies.ingestionSessionRepository.loadSessionSnapshot(sessionId);
   const segment = requireSegment(snapshot, segmentId);
+
+  if (
+    segment.segment.workflowState === "approved" &&
+    segment.segment.approvedAt !== null &&
+    segment.segment.stale === false &&
+    segment.candidates.every((candidate) => candidate.normalizedPayload !== null)
+  ) {
+    return dependencies.ingestionSessionRepository.loadSessionSnapshot(sessionId);
+  }
+
   assertSegmentReadyForApproval(segment);
 
   await promoteApprovedSegment(snapshot.session, segment, dependencies);
