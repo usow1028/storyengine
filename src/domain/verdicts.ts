@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { DraftCheckScopeSchema, DraftSourceTextRefSchema } from "./drafts.js";
 import {
   EntityIdSchema,
   EventIdSchema,
@@ -139,13 +140,25 @@ export type VerdictEvidence = z.infer<typeof VerdictEvidenceSchema>;
 export const VerdictRunTriggerKindSchema = z.enum(["manual", "rerun", "test", "system"]);
 export type VerdictRunTriggerKind = z.infer<typeof VerdictRunTriggerKindSchema>;
 
+export const VerdictRunScopeSchema = z.object({
+  scopeId: z.string().min(1),
+  scopeKind: z.enum(["full_approved_draft", "section", "segment_range"]),
+  comparisonScopeKey: z.string().min(1),
+  segmentIds: z.array(z.string().min(1)).default([]),
+  eventIds: z.array(z.string().min(1)).default([]),
+  sourceTextRefs: z.array(DraftSourceTextRefSchema).default([]),
+  payload: DraftCheckScopeSchema
+});
+export type VerdictRunScope = z.infer<typeof VerdictRunScopeSchema>;
+
 export const VerdictRunRecordSchema = z.object({
   runId: z.string().min(1),
   storyId: StoryIdSchema,
   revisionId: RevisionIdSchema,
   previousRunId: z.string().min(1).optional(),
   triggerKind: VerdictRunTriggerKindSchema,
-  createdAt: z.string().min(1)
+  createdAt: z.string().min(1),
+  scope: VerdictRunScopeSchema.optional()
 });
 export type VerdictRunRecord = z.infer<typeof VerdictRunRecordSchema>;
 
