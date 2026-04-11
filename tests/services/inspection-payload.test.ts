@@ -321,12 +321,21 @@ describe("inspection payload service", () => {
   async function seedRunWithSnapshot(
     runSnapshot: RunInspectionSnapshot = snapshot("run:current")
   ): Promise<void> {
+    const comparisonScopeKey = "full:draft-document:scope";
+
     await verdictRunRepository.saveRun({
       runId: "run:previous",
       storyId: "story:test",
       revisionId: "revision:test",
       triggerKind: "test",
-      createdAt: "2026-04-10T09:55:00Z"
+      createdAt: "2026-04-10T09:55:00Z",
+      scope: fullScope({
+        scopeId: "scope:previous",
+        storyId: "story:test",
+        revisionId: "revision:test",
+        draftRevisionId: "draft-revision:previous",
+        comparisonScopeKey
+      })
     });
     await verdictRepository.saveVerdict(
       verdict({
@@ -354,7 +363,14 @@ describe("inspection payload service", () => {
       revisionId: "revision:test",
       previousRunId: "run:previous",
       triggerKind: "test",
-      createdAt: "2026-04-10T10:00:00Z"
+      createdAt: "2026-04-10T10:00:00Z",
+      scope: fullScope({
+        scopeId: "scope:current",
+        storyId: "story:test",
+        revisionId: "revision:test",
+        draftRevisionId: "draft-revision:current",
+        comparisonScopeKey
+      })
     });
     await verdictRepository.saveMany([
       verdict({
@@ -436,6 +452,75 @@ describe("inspection payload service", () => {
       reasonCode: "impossible_travel",
       relatedEventIds: ["event:meeting", "event:airport"]
     });
+  });
+
+  it("builds additive operational summary and grouping metadata for a large inspection run", async () => {
+    await seedRunWithSnapshot();
+
+    const payload = await buildRunInspectionPayload({
+      runId: "run:current",
+      verdictRunRepository,
+      verdictRepository
+    });
+
+    const parsed = RunInspectionResponseSchema.parse(payload);
+
+    // Wave 0 red-phase contract: Tasks 12-01-02 and 12-01-03 must make this pass.
+    expect(parsed.run.scopeSummary).toMatchObject({
+      scopeId: "scope:current",
+      scopeKind: "full_approved_draft",
+      segmentCount: 2,
+      eventCount: 2,
+      sourceTextRefCount: 1
+    });
+    expect(parsed.run.operationalSummary).toMatchObject({
+      warningCount: 3,
+      staleSegmentCount: 1,
+      unresolvedSegmentCount: 1,
+      failedSegmentCount: 1
+    });
+    expect(parsed.groups[0].verdicts[0].secondaryGroup).toMatchObject({
+      groupKey: "chapter:draft-document:scope:chapter-1",
+      label: "Chapter 1",
+      kind: "chapter"
+    });
+  });
+
+  it("projects sanitized provenance summaries without leaking raw session internals", async () => {
+    await seedRunWithSnapshot();
+
+    const payload = await buildRunInspectionPayload({
+      runId: "run:current",
+      verdictRunRepository,
+      verdictRepository
+    });
+
+    const parsed = RunInspectionResponseSchema.parse(payload);
+    const summary = parsed.groups[0].verdicts[0];
+    const detail = parsed.detailsByVerdictId["verdict:hard"];
+
+    // Wave 0 red-phase contract: row/detail provenance must stay traceable and sanitized.
+    expect(summary.provenanceSummary).toMatchObject({
+      segmentId: "segment:scope:1",
+      segmentLabel: "Arrival beat 1",
+      reviewState: "stale"
+    });
+    expect(detail.sourceContext).toMatchObject({
+      sourceSpans: [
+        {
+          sourceKind: "ingestion_session_raw_text",
+          startOffset: 0,
+          endOffset: 28,
+          textNormalization: "lf"
+        }
+      ]
+    });
+
+    const serialized = JSON.stringify(parsed);
+    expect(serialized).not.toContain("segmentText");
+    expect(serialized).not.toContain("attempts");
+    expect(serialized).not.toContain("snapshotDir");
+    expect(serialized).not.toContain("artifactPath");
   });
 
   it("shapes selected details with deterministic evidence, timeline, repairs, advisory, trace, and diff", async () => {

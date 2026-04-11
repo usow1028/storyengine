@@ -272,6 +272,54 @@ describe("inspection api", () => {
     await app.close();
   });
 
+  it("returns enriched inspection metadata for large-run exploration", async () => {
+    const app = buildApp();
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/inspection/runs/run%3Aapi-current"
+    });
+
+    expect(response.statusCode).toBe(200);
+    const parsed = RunInspectionResponseSchema.parse(response.json());
+
+    // Wave 0 red-phase contract: Tasks 12-01-02 and 12-01-03 must make this pass.
+    expect(parsed.run.scopeSummary).toMatchObject({
+      scopeId: "scope:api-current",
+      scopeKind: "full_approved_draft",
+      segmentCount: 2
+    });
+    expect(parsed.run.operationalSummary).toMatchObject({
+      warningCount: 3,
+      staleSegmentCount: 1,
+      unresolvedSegmentCount: 1,
+      failedSegmentCount: 1
+    });
+    expect(parsed.groups[0].verdicts[0].secondaryGroup).toMatchObject({
+      groupKey: "chapter:draft-document:api-inspection:chapter-1",
+      label: "Chapter 1"
+    });
+    expect(parsed.groups[0].verdicts[0].provenanceSummary).toMatchObject({
+      segmentId: "segment:inspection:1",
+      reviewState: "stale"
+    });
+    expect(parsed.detailsByVerdictId["verdict:api-hard"].sourceContext).toMatchObject({
+      sourceSpans: [
+        {
+          sourceKind: "ingestion_session_raw_text",
+          startOffset: 0,
+          endOffset: 28
+        }
+      ]
+    });
+
+    expect(response.body).not.toContain("segmentText");
+    expect(response.body).not.toContain("attempts");
+    expect(response.body).not.toContain("artifactPath");
+
+    await app.close();
+  });
+
   it("returns stable 404 JSON for missing runs", async () => {
     const app = buildApp();
 
