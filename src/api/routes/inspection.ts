@@ -55,7 +55,9 @@ export function registerInspectionRoutes(
         baseRunId: query.data.baseRunId,
         baseRevisionId: query.data.baseRevisionId,
         verdictRunRepository: dependencies.verdictRunRepository,
-        verdictRepository: dependencies.verdictRepository
+        verdictRepository: dependencies.verdictRepository,
+        ingestionSessionRepository: dependencies.ingestionSessionRepository,
+        provenanceRepository: dependencies.provenanceRepository
       });
 
       if (!payload) {

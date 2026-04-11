@@ -28,6 +28,16 @@ function createTestClient() {
   return { pool };
 }
 
+function createSourceTextRef(sessionId: string, startOffset: number, endOffset: number) {
+  return {
+    sourceKind: "ingestion_session_raw_text" as const,
+    sessionId,
+    startOffset,
+    endOffset,
+    textNormalization: "lf" as const
+  };
+}
+
 function hardVerdict(): VerdictRecord {
   return {
     verdictId: "verdict:api-hard",
@@ -140,6 +150,16 @@ function inspectionSnapshot(): RunInspectionSnapshot {
           representativePatternSummary: "Long travel needs setup."
         }
       ]
+    },
+    operationalSummary: {
+      workflowState: "partial_failure",
+      totalSegmentCount: 4,
+      approvedSegmentCount: 2,
+      staleSegmentCount: 1,
+      unresolvedSegmentCount: 1,
+      failedSegmentCount: 1,
+      warningCount: 3,
+      warningKinds: ["stale_segments", "unresolved_segments", "failed_segments"]
     }
   };
 }
@@ -182,6 +202,8 @@ describe("inspection api", () => {
   let storyRepository: StoryRepository;
   let verdictRepository: VerdictRepository;
   let verdictRunRepository: VerdictRunRepository;
+  let ingestionSessionRepository: IngestionSessionRepository;
+  let provenanceRepository: ProvenanceRepository;
 
   beforeEach(async () => {
     const created = createTestClient();
@@ -191,8 +213,378 @@ describe("inspection api", () => {
     storyRepository = new StoryRepository(pool);
     verdictRepository = new VerdictRepository(pool);
     verdictRunRepository = new VerdictRunRepository(pool);
+    ingestionSessionRepository = new IngestionSessionRepository(pool);
+    provenanceRepository = new ProvenanceRepository(pool);
 
     await storyRepository.saveGraph(buildImpossibleTravelFixture().graph);
+    await ingestionSessionRepository.createSession({
+      sessionId: "session:inspection",
+      storyId: "story:test",
+      revisionId: "revision:test",
+      draftTitle: "Inspection API Draft",
+      defaultRulePackName: "reality-default",
+      inputKind: "full_draft",
+      rawText: "Arrival beat 1.\nArrival beat 2.\nReview beat.\nFailed beat.",
+      workflowState: "partial_failure",
+      promptFamily: "phase12-test",
+      modelName: "test-model",
+      lastVerdictRunId: null,
+      createdAt: "2026-04-10T10:55:00Z",
+      updatedAt: "2026-04-10T11:00:00Z",
+      lastCheckedAt: null
+    });
+    await ingestionSessionRepository.saveDraftPlan("session:inspection", {
+      document: {
+        documentId: "draft-document:api-inspection",
+        storyId: "story:test",
+        title: "Inspection API Draft",
+        createdAt: "2026-04-10T10:55:00Z",
+        updatedAt: "2026-04-10T11:00:00Z"
+      },
+      revision: {
+        draftRevisionId: "draft-revision:api-inspection",
+        documentId: "draft-document:api-inspection",
+        storyId: "story:test",
+        revisionId: "revision:test",
+        basedOnDraftRevisionId: null,
+        createdAt: "2026-04-10T10:55:00Z"
+      },
+      sections: [
+        {
+          sectionId: "draft-section:api-inspection:chapter-1",
+          draftRevisionId: "draft-revision:api-inspection",
+          sectionKind: "chapter",
+          sequence: 0,
+          label: "Chapter 1",
+          sourceTextRef: createSourceTextRef("session:inspection", 0, 112)
+        }
+      ],
+      segments: [
+        {
+          segment: {
+            segmentId: "segment:inspection:1",
+            sessionId: "session:inspection",
+            sequence: 0,
+            label: "Arrival beat 1",
+            startOffset: 0,
+            endOffset: 28,
+            segmentText: "Arrival beat 1.",
+            draftRevisionId: "draft-revision:api-inspection",
+            sectionId: "draft-section:api-inspection:chapter-1",
+            draftPath: {
+              documentId: "draft-document:api-inspection",
+              draftRevisionId: "draft-revision:api-inspection",
+              sectionId: "draft-section:api-inspection:chapter-1",
+              segmentId: "segment:inspection:1",
+              sequence: 0
+            },
+            sourceTextRef: createSourceTextRef("session:inspection", 0, 28),
+            workflowState: "approved",
+            approvedAt: "2026-04-10T10:56:00Z",
+            attemptCount: 0,
+            lastExtractionAt: null,
+            lastAttemptStatus: null,
+            lastFailureSummary: null,
+            stale: true,
+            staleReason: "review_patch",
+            currentAttemptId: null
+          },
+          sourceTextRef: createSourceTextRef("session:inspection", 0, 28),
+          draftPath: {
+            documentId: "draft-document:api-inspection",
+            draftRevisionId: "draft-revision:api-inspection",
+            sectionId: "draft-section:api-inspection:chapter-1",
+            segmentId: "segment:inspection:1",
+            sequence: 0
+          }
+        },
+        {
+          segment: {
+            segmentId: "segment:inspection:2",
+            sessionId: "session:inspection",
+            sequence: 1,
+            label: "Arrival beat 2",
+            startOffset: 29,
+            endOffset: 56,
+            segmentText: "Arrival beat 2.",
+            draftRevisionId: "draft-revision:api-inspection",
+            sectionId: "draft-section:api-inspection:chapter-1",
+            draftPath: {
+              documentId: "draft-document:api-inspection",
+              draftRevisionId: "draft-revision:api-inspection",
+              sectionId: "draft-section:api-inspection:chapter-1",
+              segmentId: "segment:inspection:2",
+              sequence: 1
+            },
+            sourceTextRef: createSourceTextRef("session:inspection", 29, 56),
+            workflowState: "approved",
+            approvedAt: "2026-04-10T10:57:00Z",
+            attemptCount: 0,
+            lastExtractionAt: null,
+            lastAttemptStatus: null,
+            lastFailureSummary: null,
+            stale: false,
+            staleReason: null,
+            currentAttemptId: null
+          },
+          sourceTextRef: createSourceTextRef("session:inspection", 29, 56),
+          draftPath: {
+            documentId: "draft-document:api-inspection",
+            draftRevisionId: "draft-revision:api-inspection",
+            sectionId: "draft-section:api-inspection:chapter-1",
+            segmentId: "segment:inspection:2",
+            sequence: 1
+          }
+        },
+        {
+          segment: {
+            segmentId: "segment:inspection:3",
+            sessionId: "session:inspection",
+            sequence: 2,
+            label: "Review beat",
+            startOffset: 57,
+            endOffset: 84,
+            segmentText: "Review beat.",
+            draftRevisionId: "draft-revision:api-inspection",
+            sectionId: "draft-section:api-inspection:chapter-1",
+            draftPath: {
+              documentId: "draft-document:api-inspection",
+              draftRevisionId: "draft-revision:api-inspection",
+              sectionId: "draft-section:api-inspection:chapter-1",
+              segmentId: "segment:inspection:3",
+              sequence: 2
+            },
+            sourceTextRef: createSourceTextRef("session:inspection", 57, 84),
+            workflowState: "needs_review",
+            approvedAt: null,
+            attemptCount: 0,
+            lastExtractionAt: null,
+            lastAttemptStatus: null,
+            lastFailureSummary: null,
+            stale: false,
+            staleReason: null,
+            currentAttemptId: null
+          },
+          sourceTextRef: createSourceTextRef("session:inspection", 57, 84),
+          draftPath: {
+            documentId: "draft-document:api-inspection",
+            draftRevisionId: "draft-revision:api-inspection",
+            sectionId: "draft-section:api-inspection:chapter-1",
+            segmentId: "segment:inspection:3",
+            sequence: 2
+          }
+        },
+        {
+          segment: {
+            segmentId: "segment:inspection:4",
+            sessionId: "session:inspection",
+            sequence: 3,
+            label: "Failed beat",
+            startOffset: 85,
+            endOffset: 112,
+            segmentText: "Failed beat.",
+            draftRevisionId: "draft-revision:api-inspection",
+            sectionId: "draft-section:api-inspection:chapter-1",
+            draftPath: {
+              documentId: "draft-document:api-inspection",
+              draftRevisionId: "draft-revision:api-inspection",
+              sectionId: "draft-section:api-inspection:chapter-1",
+              segmentId: "segment:inspection:4",
+              sequence: 3
+            },
+            sourceTextRef: createSourceTextRef("session:inspection", 85, 112),
+            workflowState: "failed",
+            approvedAt: null,
+            attemptCount: 1,
+            lastExtractionAt: "2026-04-10T10:58:00Z",
+            lastAttemptStatus: "failed",
+            lastFailureSummary: "LLM extraction failed",
+            stale: false,
+            staleReason: null,
+            currentAttemptId: "attempt:inspection:4:1"
+          },
+          sourceTextRef: createSourceTextRef("session:inspection", 85, 112),
+          draftPath: {
+            documentId: "draft-document:api-inspection",
+            draftRevisionId: "draft-revision:api-inspection",
+            sectionId: "draft-section:api-inspection:chapter-1",
+            segmentId: "segment:inspection:4",
+            sequence: 3
+          }
+        }
+      ],
+      checkScopes: [
+        {
+          scopeKind: "full_approved_draft",
+          scopeId: "scope:api-current",
+          documentId: "draft-document:api-inspection",
+          draftRevisionId: "draft-revision:api-inspection",
+          storyId: "story:test",
+          revisionId: "revision:test"
+        }
+      ],
+      normalizedRawText: "Arrival beat 1.\nArrival beat 2.\nReview beat.\nFailed beat."
+    });
+    await ingestionSessionRepository.saveSegments("session:inspection", [
+      {
+        segmentId: "segment:inspection:1",
+        sessionId: "session:inspection",
+        sequence: 0,
+        label: "Arrival beat 1",
+        startOffset: 0,
+        endOffset: 28,
+        segmentText: "Arrival beat 1.",
+        draftRevisionId: "draft-revision:api-inspection",
+        sectionId: "draft-section:api-inspection:chapter-1",
+        draftPath: {
+          documentId: "draft-document:api-inspection",
+          draftRevisionId: "draft-revision:api-inspection",
+          sectionId: "draft-section:api-inspection:chapter-1",
+          segmentId: "segment:inspection:1",
+          sequence: 0
+        },
+        sourceTextRef: createSourceTextRef("session:inspection", 0, 28),
+        workflowState: "approved",
+        approvedAt: "2026-04-10T10:56:00Z",
+        attemptCount: 0,
+        lastExtractionAt: null,
+        lastAttemptStatus: null,
+        lastFailureSummary: null,
+        stale: true,
+        staleReason: "review_patch",
+        currentAttemptId: null
+      },
+      {
+        segmentId: "segment:inspection:2",
+        sessionId: "session:inspection",
+        sequence: 1,
+        label: "Arrival beat 2",
+        startOffset: 29,
+        endOffset: 56,
+        segmentText: "Arrival beat 2.",
+        draftRevisionId: "draft-revision:api-inspection",
+        sectionId: "draft-section:api-inspection:chapter-1",
+        draftPath: {
+          documentId: "draft-document:api-inspection",
+          draftRevisionId: "draft-revision:api-inspection",
+          sectionId: "draft-section:api-inspection:chapter-1",
+          segmentId: "segment:inspection:2",
+          sequence: 1
+        },
+        sourceTextRef: createSourceTextRef("session:inspection", 29, 56),
+        workflowState: "approved",
+        approvedAt: "2026-04-10T10:57:00Z",
+        attemptCount: 0,
+        lastExtractionAt: null,
+        lastAttemptStatus: null,
+        lastFailureSummary: null,
+        stale: false,
+        staleReason: null,
+        currentAttemptId: null
+      },
+      {
+        segmentId: "segment:inspection:3",
+        sessionId: "session:inspection",
+        sequence: 2,
+        label: "Review beat",
+        startOffset: 57,
+        endOffset: 84,
+        segmentText: "Review beat.",
+        draftRevisionId: "draft-revision:api-inspection",
+        sectionId: "draft-section:api-inspection:chapter-1",
+        draftPath: {
+          documentId: "draft-document:api-inspection",
+          draftRevisionId: "draft-revision:api-inspection",
+          sectionId: "draft-section:api-inspection:chapter-1",
+          segmentId: "segment:inspection:3",
+          sequence: 2
+        },
+        sourceTextRef: createSourceTextRef("session:inspection", 57, 84),
+        workflowState: "needs_review",
+        approvedAt: null,
+        attemptCount: 0,
+        lastExtractionAt: null,
+        lastAttemptStatus: null,
+        lastFailureSummary: null,
+        stale: false,
+        staleReason: null,
+        currentAttemptId: null
+      },
+      {
+        segmentId: "segment:inspection:4",
+        sessionId: "session:inspection",
+        sequence: 3,
+        label: "Failed beat",
+        startOffset: 85,
+        endOffset: 112,
+        segmentText: "Failed beat.",
+        draftRevisionId: "draft-revision:api-inspection",
+        sectionId: "draft-section:api-inspection:chapter-1",
+        draftPath: {
+          documentId: "draft-document:api-inspection",
+          draftRevisionId: "draft-revision:api-inspection",
+          sectionId: "draft-section:api-inspection:chapter-1",
+          segmentId: "segment:inspection:4",
+          sequence: 3
+        },
+        sourceTextRef: createSourceTextRef("session:inspection", 85, 112),
+        workflowState: "failed",
+        approvedAt: null,
+        attemptCount: 1,
+        lastExtractionAt: "2026-04-10T10:58:00Z",
+        lastAttemptStatus: "failed",
+        lastFailureSummary: "LLM extraction failed",
+        stale: false,
+        staleReason: null,
+        currentAttemptId: "attempt:inspection:4:1"
+      }
+    ]);
+    await pool.query(
+      `
+        UPDATE ingestion_segments
+        SET stale = CASE WHEN segment_id = 'segment:inspection:1' THEN TRUE ELSE FALSE END,
+            stale_reason = CASE
+              WHEN segment_id = 'segment:inspection:1' THEN 'review_patch'
+              ELSE NULL
+            END,
+            attempt_count = CASE
+              WHEN segment_id = 'segment:inspection:4' THEN 1
+              ELSE 0
+            END,
+            last_extraction_at = CASE
+              WHEN segment_id = 'segment:inspection:4' THEN '2026-04-10T10:58:00Z'
+              ELSE NULL
+            END,
+            last_attempt_status = CASE
+              WHEN segment_id = 'segment:inspection:4' THEN 'failed'
+              ELSE NULL
+            END,
+            last_failure_summary = CASE
+              WHEN segment_id = 'segment:inspection:4' THEN 'LLM extraction failed'
+              ELSE NULL
+            END,
+            current_attempt_id = CASE
+              WHEN segment_id = 'segment:inspection:4' THEN 'attempt:inspection:4:1'
+              ELSE NULL
+            END
+        WHERE session_id = 'session:inspection'
+      `
+    );
+    await provenanceRepository.saveMany([
+      {
+        provenanceId: "provenance:api-hard",
+        ownerType: "verdict",
+        ownerId: "verdict:api-hard",
+        sourceKind: "normalized",
+        sourceRef: "segment:inspection:1",
+        detail: {
+          sessionId: "session:inspection",
+          segmentId: "segment:inspection:1",
+          sourceSpanStart: 0,
+          sourceSpanEnd: 28
+        }
+      }
+    ]);
     await verdictRunRepository.saveRun({
       runId: "run:api-current",
       storyId: "story:test",
@@ -217,10 +609,10 @@ describe("inspection api", () => {
 
   function buildApp() {
     return buildStoryGraphApi({
-      ingestionSessionRepository: new IngestionSessionRepository(pool),
+      ingestionSessionRepository,
       storyRepository,
       ruleRepository: new RuleRepository(pool),
-      provenanceRepository: new ProvenanceRepository(pool),
+      provenanceRepository,
       verdictRepository,
       verdictRunRepository,
       llmClient: createConfiguredIngestionLlmClient({

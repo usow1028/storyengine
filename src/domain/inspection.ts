@@ -22,6 +22,16 @@ import {
   StoryIdSchema,
   VerdictIdSchema
 } from "./ids.js";
+import {
+  DraftDocumentIdSchema,
+  DraftSectionIdSchema,
+  DraftSourceTextRefSchema
+} from "./drafts.js";
+import {
+  IngestionSegmentIdSchema,
+  IngestionSessionIdSchema,
+  IngestionWorkflowStateSchema
+} from "./ingestion.js";
 import { RepairCandidateSchema } from "./repairs.js";
 import { RepairPlausibilityAdjustmentSchema, SoftPriorAssessmentSchema } from "./priors.js";
 
@@ -62,11 +72,90 @@ export const InspectionAdvisorySchema = z.discriminatedUnion("status", [
 ]);
 export type InspectionAdvisory = z.infer<typeof InspectionAdvisorySchema>;
 
+export const InspectionScopeSummarySchema = z.object({
+  scopeId: z.string().min(1),
+  scopeKind: z.enum(["full_approved_draft", "section", "segment_range"]),
+  comparisonScopeKey: z.string().min(1),
+  documentId: DraftDocumentIdSchema.nullable().optional().default(null),
+  draftRevisionId: z.string().min(1).nullable().optional().default(null),
+  segmentCount: z.number().int().nonnegative(),
+  eventCount: z.number().int().nonnegative(),
+  sourceTextRefCount: z.number().int().nonnegative()
+});
+export type InspectionScopeSummary = z.infer<typeof InspectionScopeSummarySchema>;
+
+export const InspectionOperationalWarningKindSchema = z.enum([
+  "stale_segments",
+  "unresolved_segments",
+  "failed_segments"
+]);
+export type InspectionOperationalWarningKind = z.infer<
+  typeof InspectionOperationalWarningKindSchema
+>;
+
+export const InspectionOperationalSummarySchema = z.object({
+  workflowState: IngestionWorkflowStateSchema,
+  totalSegmentCount: z.number().int().nonnegative(),
+  approvedSegmentCount: z.number().int().nonnegative(),
+  staleSegmentCount: z.number().int().nonnegative(),
+  unresolvedSegmentCount: z.number().int().nonnegative(),
+  failedSegmentCount: z.number().int().nonnegative(),
+  warningCount: z.number().int().nonnegative(),
+  warningKinds: z.array(InspectionOperationalWarningKindSchema).default([])
+});
+export type InspectionOperationalSummary = z.infer<
+  typeof InspectionOperationalSummarySchema
+>;
+
+export const InspectionReviewStateSchema = z.union([
+  IngestionWorkflowStateSchema,
+  z.literal("stale")
+]);
+export type InspectionReviewState = z.infer<typeof InspectionReviewStateSchema>;
+
+export const InspectionSecondaryGroupSchema = z.object({
+  groupKey: z.string().min(1),
+  label: z.string().min(1),
+  kind: z.enum(["chapter", "section", "scope"]),
+  sectionId: DraftSectionIdSchema.nullable().optional().default(null),
+  documentId: DraftDocumentIdSchema.nullable().optional().default(null)
+});
+export type InspectionSecondaryGroup = z.infer<typeof InspectionSecondaryGroupSchema>;
+
+export const InspectionProvenanceSummarySchema = z.object({
+  provenanceId: ProvenanceIdSchema.nullable().optional().default(null),
+  sessionId: IngestionSessionIdSchema.nullable().optional().default(null),
+  segmentId: IngestionSegmentIdSchema.nullable().optional().default(null),
+  segmentLabel: z.string().min(1).nullable().optional().default(null),
+  reviewState: InspectionReviewStateSchema.nullable().optional().default(null),
+  sectionId: DraftSectionIdSchema.nullable().optional().default(null),
+  sectionLabel: z.string().min(1).nullable().optional().default(null),
+  sectionKind: z.enum(["chapter", "section"]).nullable().optional().default(null),
+  sourceSpans: z.array(DraftSourceTextRefSchema).default([])
+});
+export type InspectionProvenanceSummary = z.infer<
+  typeof InspectionProvenanceSummarySchema
+>;
+
+export const InspectionSourceContextSchema = z.object({
+  provenanceIds: z.array(ProvenanceIdSchema).default([]),
+  sessionId: IngestionSessionIdSchema.nullable().optional().default(null),
+  segmentId: IngestionSegmentIdSchema.nullable().optional().default(null),
+  segmentLabel: z.string().min(1).nullable().optional().default(null),
+  reviewState: InspectionReviewStateSchema.nullable().optional().default(null),
+  sectionId: DraftSectionIdSchema.nullable().optional().default(null),
+  sectionLabel: z.string().min(1).nullable().optional().default(null),
+  sectionKind: z.enum(["chapter", "section"]).nullable().optional().default(null),
+  sourceSpans: z.array(DraftSourceTextRefSchema).default([])
+});
+export type InspectionSourceContext = z.infer<typeof InspectionSourceContextSchema>;
+
 export const RunInspectionSnapshotSchema = z.object({
   runId: z.string().min(1),
   createdAt: z.string().min(1),
   repairCandidates: z.array(RepairCandidateSchema).default([]),
-  advisory: InspectionAdvisorySchema
+  advisory: InspectionAdvisorySchema,
+  operationalSummary: InspectionOperationalSummarySchema.nullable().optional()
 });
 export type RunInspectionSnapshot = z.infer<typeof RunInspectionSnapshotSchema>;
 
@@ -76,7 +165,9 @@ export const InspectionRunSchema = z.object({
   revisionId: RevisionIdSchema,
   previousRunId: z.string().min(1).nullable(),
   triggerKind: VerdictRunTriggerKindSchema,
-  createdAt: z.string().min(1)
+  createdAt: z.string().min(1),
+  scopeSummary: InspectionScopeSummarySchema.nullable().optional(),
+  operationalSummary: InspectionOperationalSummarySchema.nullable().optional()
 });
 export type InspectionRun = z.infer<typeof InspectionRunSchema>;
 
@@ -115,7 +206,9 @@ export const InspectionVerdictSummarySchema = z.object({
   relatedEventIds: z.array(EventIdSchema).default([]),
   eventCount: z.number().int().nonnegative(),
   repairCandidateCount: z.number().int().nonnegative(),
-  createdAt: z.string().min(1)
+  createdAt: z.string().min(1),
+  secondaryGroup: InspectionSecondaryGroupSchema.nullable().optional(),
+  provenanceSummary: InspectionProvenanceSummarySchema.nullable().optional()
 });
 export type InspectionVerdictSummary = z.infer<typeof InspectionVerdictSummarySchema>;
 
@@ -196,6 +289,7 @@ export const InspectionVerdictDetailSchema = z.object({
   repairs: z.array(InspectionRepairCandidateSchema).default([]),
   advisory: InspectionAdvisorySchema,
   diff: InspectionDiffSchema.nullable(),
+  sourceContext: InspectionSourceContextSchema.nullable().optional(),
   createdAt: z.string().min(1)
 });
 export type InspectionVerdictDetail = z.infer<typeof InspectionVerdictDetailSchema>;

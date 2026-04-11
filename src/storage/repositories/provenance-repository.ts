@@ -86,4 +86,48 @@ export class ProvenanceRepository {
 
     return rows.map((row) => ProvenanceRecordSchema.parse(row));
   }
+
+  async getByIds(provenanceIds: string[]): Promise<ProvenanceRecord[]> {
+    const ids = provenanceIds.map((provenanceId) => ProvenanceIdSchema.parse(provenanceId));
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const placeholders = ids.map((_, index) => `$${index + 1}`).join(", ");
+    const rows = (
+      await this.client.query<{
+        provenanceId: string;
+        ownerType: ProvenanceRecord["ownerType"];
+        ownerId: string;
+        sourceKind: ProvenanceRecord["sourceKind"];
+        sourceRef: string;
+        detail: Record<string, unknown>;
+      }>(
+        `
+          SELECT
+            provenance_id AS "provenanceId",
+            owner_type AS "ownerType",
+            owner_id AS "ownerId",
+            source_kind AS "sourceKind",
+            source_ref AS "sourceRef",
+            detail
+          FROM provenance_records
+          WHERE provenance_id IN (${placeholders})
+        `,
+        ids
+      )
+    ).rows;
+
+    const byId = new Map(
+      rows.map((row) => {
+        const parsed = ProvenanceRecordSchema.parse(row);
+        return [parsed.provenanceId, parsed] as const;
+      })
+    );
+
+    return ids.flatMap((provenanceId) => {
+      const record = byId.get(provenanceId);
+      return record ? [record] : [];
+    });
+  }
 }

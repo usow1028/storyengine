@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 
-import type { VerdictKind, VerdictRecord, VerdictRunScope } from "../domain/index.js";
+import type {
+  InspectionOperationalSummary,
+  VerdictKind,
+  VerdictRecord,
+  VerdictRunScope
+} from "../domain/index.js";
 import {
   evaluateRevision,
   generateRepairCandidates,
@@ -35,6 +40,7 @@ export interface ExecuteVerdictRunInput {
   createdAt?: string;
   softPriorConfig?: SoftPriorRuntimeConfig;
   scope?: VerdictRunScope;
+  inspectionOperationalSummary?: InspectionOperationalSummary | null;
 }
 
 export interface ExecuteVerdictRunResult {
@@ -187,7 +193,8 @@ export async function executeVerdictRun(
       runId,
       createdAt,
       repairs,
-      softPrior
+      softPrior,
+      operationalSummary: input.inspectionOperationalSummary ?? null
     })
   );
 

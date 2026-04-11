@@ -11,6 +11,8 @@ import {
 import { buildRunInspectionPayload } from "../../src/services/inspection-payload.js";
 import {
   applyCanonicalSchema,
+  IngestionSessionRepository,
+  ProvenanceRepository,
   StoryRepository,
   VerdictRepository,
   VerdictRunRepository
@@ -22,6 +24,16 @@ function createTestClient() {
   const adapter = memory.adapters.createPg();
   const pool = new adapter.Pool();
   return { pool };
+}
+
+function createSourceTextRef(sessionId: string, startOffset: number, endOffset: number) {
+  return {
+    sourceKind: "ingestion_session_raw_text" as const,
+    sessionId,
+    startOffset,
+    endOffset,
+    textNormalization: "lf" as const
+  };
 }
 
 function evidence(overrides: Partial<VerdictEvidence> = {}): VerdictEvidence {
@@ -203,6 +215,16 @@ function snapshot(runId: string): RunInspectionSnapshot {
           representativePatternSummary: "Long-distance arrivals usually need travel setup."
         }
       ]
+    },
+    operationalSummary: {
+      workflowState: "partial_failure",
+      totalSegmentCount: 4,
+      approvedSegmentCount: 2,
+      staleSegmentCount: 1,
+      unresolvedSegmentCount: 1,
+      failedSegmentCount: 1,
+      warningCount: 3,
+      warningKinds: ["stale_segments", "unresolved_segments", "failed_segments"]
     }
   };
 }
@@ -301,6 +323,8 @@ describe("inspection payload service", () => {
   let pool: Pool;
   let verdictRepository: VerdictRepository;
   let verdictRunRepository: VerdictRunRepository;
+  let ingestionSessionRepository: IngestionSessionRepository;
+  let provenanceRepository: ProvenanceRepository;
 
   beforeEach(async () => {
     const created = createTestClient();
@@ -312,16 +336,266 @@ describe("inspection payload service", () => {
 
     verdictRepository = new VerdictRepository(pool);
     verdictRunRepository = new VerdictRunRepository(pool);
+    ingestionSessionRepository = new IngestionSessionRepository(pool);
+    provenanceRepository = new ProvenanceRepository(pool);
   });
 
   afterEach(async () => {
     await pool.end();
   });
 
+  async function seedInspectionContext(): Promise<void> {
+    const fixture = buildImpossibleTravelFixture();
+    const sessionId = "session:scope";
+    const documentId = "draft-document:scope";
+    const draftRevisionId = "draft-revision:scope";
+    const sectionId = "draft-section:scope:chapter-1";
+    const segments = [
+      {
+        segmentId: "segment:scope:1",
+        sessionId,
+        sequence: 0,
+        label: "Arrival beat 1",
+        startOffset: 0,
+        endOffset: 28,
+        segmentText: "Arrival beat 1.",
+        draftRevisionId,
+        sectionId,
+        draftPath: {
+          documentId,
+          draftRevisionId,
+          sectionId,
+          segmentId: "segment:scope:1",
+          sequence: 0
+        },
+        sourceTextRef: createSourceTextRef(sessionId, 0, 28),
+        workflowState: "approved" as const,
+        approvedAt: "2026-04-10T09:57:00Z",
+        attemptCount: 0,
+        lastExtractionAt: null,
+        lastAttemptStatus: null,
+        lastFailureSummary: null,
+        stale: true,
+        staleReason: "review_patch" as const,
+        currentAttemptId: null
+      },
+      {
+        segmentId: "segment:scope:2",
+        sessionId,
+        sequence: 1,
+        label: "Arrival beat 2",
+        startOffset: 29,
+        endOffset: 56,
+        segmentText: "Arrival beat 2.",
+        draftRevisionId,
+        sectionId,
+        draftPath: {
+          documentId,
+          draftRevisionId,
+          sectionId,
+          segmentId: "segment:scope:2",
+          sequence: 1
+        },
+        sourceTextRef: createSourceTextRef(sessionId, 29, 56),
+        workflowState: "approved" as const,
+        approvedAt: "2026-04-10T09:58:00Z",
+        attemptCount: 0,
+        lastExtractionAt: null,
+        lastAttemptStatus: null,
+        lastFailureSummary: null,
+        stale: false,
+        staleReason: null,
+        currentAttemptId: null
+      },
+      {
+        segmentId: "segment:scope:3",
+        sessionId,
+        sequence: 2,
+        label: "Review beat",
+        startOffset: 57,
+        endOffset: 84,
+        segmentText: "Review beat.",
+        draftRevisionId,
+        sectionId,
+        draftPath: {
+          documentId,
+          draftRevisionId,
+          sectionId,
+          segmentId: "segment:scope:3",
+          sequence: 2
+        },
+        sourceTextRef: createSourceTextRef(sessionId, 57, 84),
+        workflowState: "needs_review" as const,
+        approvedAt: null,
+        attemptCount: 0,
+        lastExtractionAt: null,
+        lastAttemptStatus: null,
+        lastFailureSummary: null,
+        stale: false,
+        staleReason: null,
+        currentAttemptId: null
+      },
+      {
+        segmentId: "segment:scope:4",
+        sessionId,
+        sequence: 3,
+        label: "Failed beat",
+        startOffset: 85,
+        endOffset: 112,
+        segmentText: "Failed beat.",
+        draftRevisionId,
+        sectionId,
+        draftPath: {
+          documentId,
+          draftRevisionId,
+          sectionId,
+          segmentId: "segment:scope:4",
+          sequence: 3
+        },
+        sourceTextRef: createSourceTextRef(sessionId, 85, 112),
+        workflowState: "failed" as const,
+        approvedAt: null,
+        attemptCount: 1,
+        lastExtractionAt: "2026-04-10T09:59:00Z",
+        lastAttemptStatus: "failed" as const,
+        lastFailureSummary: "LLM extraction failed",
+        stale: false,
+        staleReason: null,
+        currentAttemptId: "attempt:scope:4:1"
+      }
+    ];
+
+    await ingestionSessionRepository.createSession({
+      sessionId,
+      storyId: fixture.graph.story.storyId,
+      revisionId: fixture.graph.revision.revisionId,
+      draftTitle: "Inspection Scope Draft",
+      defaultRulePackName: fixture.graph.story.defaultRulePackName,
+      inputKind: "full_draft",
+      rawText: "Arrival beat 1.\nArrival beat 2.\nReview beat.\nFailed beat.",
+      workflowState: "partial_failure",
+      promptFamily: "phase12-test",
+      modelName: "test-model",
+      lastVerdictRunId: null,
+      createdAt: "2026-04-10T09:55:00Z",
+      updatedAt: "2026-04-10T10:00:00Z",
+      lastCheckedAt: null
+    });
+
+    await ingestionSessionRepository.saveDraftPlan(sessionId, {
+      document: {
+        documentId,
+        storyId: fixture.graph.story.storyId,
+        title: "Inspection Scope Draft",
+        createdAt: "2026-04-10T09:55:00Z",
+        updatedAt: "2026-04-10T10:00:00Z"
+      },
+      revision: {
+        draftRevisionId,
+        documentId,
+        storyId: fixture.graph.story.storyId,
+        revisionId: fixture.graph.revision.revisionId,
+        basedOnDraftRevisionId: null,
+        createdAt: "2026-04-10T09:55:00Z"
+      },
+      sections: [
+        {
+          sectionId,
+          draftRevisionId,
+          sectionKind: "chapter",
+          sequence: 0,
+          label: "Chapter 1",
+          sourceTextRef: createSourceTextRef(sessionId, 0, 112)
+        }
+      ],
+      segments: segments.map((segment) => ({
+        segment,
+        sourceTextRef: segment.sourceTextRef,
+        draftPath: segment.draftPath
+      })),
+      checkScopes: [
+        {
+          scopeKind: "full_approved_draft",
+          scopeId: "scope:current",
+          documentId,
+          draftRevisionId,
+          storyId: fixture.graph.story.storyId,
+          revisionId: fixture.graph.revision.revisionId
+        }
+      ],
+      normalizedRawText: "Arrival beat 1.\nArrival beat 2.\nReview beat.\nFailed beat."
+    });
+
+    await ingestionSessionRepository.saveSegments(sessionId, segments);
+    await pool.query(
+      `
+        UPDATE ingestion_segments
+        SET stale = CASE WHEN segment_id = 'segment:scope:1' THEN TRUE ELSE FALSE END,
+            stale_reason = CASE
+              WHEN segment_id = 'segment:scope:1' THEN 'review_patch'
+              ELSE NULL
+            END,
+            attempt_count = CASE
+              WHEN segment_id = 'segment:scope:4' THEN 1
+              ELSE 0
+            END,
+            last_extraction_at = CASE
+              WHEN segment_id = 'segment:scope:4' THEN '2026-04-10T09:59:00Z'
+              ELSE NULL
+            END,
+            last_attempt_status = CASE
+              WHEN segment_id = 'segment:scope:4' THEN 'failed'
+              ELSE NULL
+            END,
+            last_failure_summary = CASE
+              WHEN segment_id = 'segment:scope:4' THEN 'LLM extraction failed'
+              ELSE NULL
+            END,
+            current_attempt_id = CASE
+              WHEN segment_id = 'segment:scope:4' THEN 'attempt:scope:4:1'
+              ELSE NULL
+            END
+        WHERE session_id = $1
+      `,
+      [sessionId]
+    );
+
+    await provenanceRepository.saveMany([
+      {
+        provenanceId: "provenance:hard",
+        ownerType: "verdict",
+        ownerId: "verdict:hard",
+        sourceKind: "normalized",
+        sourceRef: "segment:scope:1",
+        detail: {
+          sessionId,
+          segmentId: "segment:scope:1",
+          sourceSpanStart: 0,
+          sourceSpanEnd: 28
+        }
+      }
+    ]);
+  }
+
+  async function buildPayload(input: {
+    runId: string;
+    baseRunId?: string;
+    baseRevisionId?: string;
+  }) {
+    return buildRunInspectionPayload({
+      ...input,
+      verdictRunRepository,
+      verdictRepository,
+      ingestionSessionRepository,
+      provenanceRepository
+    });
+  }
+
   async function seedRunWithSnapshot(
     runSnapshot: RunInspectionSnapshot = snapshot("run:current")
   ): Promise<void> {
     const comparisonScopeKey = "full:draft-document:scope";
+    await seedInspectionContext();
 
     await verdictRunRepository.saveRun({
       runId: "run:previous",
@@ -428,10 +702,8 @@ describe("inspection payload service", () => {
   it("groups verdict summaries in fixed order and chooses the first verdict in the first non-empty group", async () => {
     await seedRunWithSnapshot();
 
-    const payload = await buildRunInspectionPayload({
-      runId: "run:current",
-      verdictRunRepository,
-      verdictRepository
+    const payload = await buildPayload({
+      runId: "run:current"
     });
 
     const parsed = RunInspectionResponseSchema.parse(payload);
@@ -457,10 +729,8 @@ describe("inspection payload service", () => {
   it("builds additive operational summary and grouping metadata for a large inspection run", async () => {
     await seedRunWithSnapshot();
 
-    const payload = await buildRunInspectionPayload({
-      runId: "run:current",
-      verdictRunRepository,
-      verdictRepository
+    const payload = await buildPayload({
+      runId: "run:current"
     });
 
     const parsed = RunInspectionResponseSchema.parse(payload);
@@ -489,10 +759,8 @@ describe("inspection payload service", () => {
   it("projects sanitized provenance summaries without leaking raw session internals", async () => {
     await seedRunWithSnapshot();
 
-    const payload = await buildRunInspectionPayload({
-      runId: "run:current",
-      verdictRunRepository,
-      verdictRepository
+    const payload = await buildPayload({
+      runId: "run:current"
     });
 
     const parsed = RunInspectionResponseSchema.parse(payload);
@@ -526,10 +794,8 @@ describe("inspection payload service", () => {
   it("shapes selected details with deterministic evidence, timeline, repairs, advisory, trace, and diff", async () => {
     await seedRunWithSnapshot();
 
-    const payload = await buildRunInspectionPayload({
-      runId: "run:current",
-      verdictRunRepository,
-      verdictRepository
+    const payload = await buildPayload({
+      runId: "run:current"
     });
 
     const parsed = RunInspectionResponseSchema.parse(payload);
@@ -683,11 +949,9 @@ describe("inspection payload service", () => {
       snapshot("run:current-scoped")
     );
 
-    const payload = await buildRunInspectionPayload({
+    const payload = await buildPayload({
       runId: "run:current-scoped",
-      baseRevisionId,
-      verdictRunRepository,
-      verdictRepository
+      baseRevisionId
     });
 
     const parsed = RunInspectionResponseSchema.parse(payload);
@@ -730,10 +994,8 @@ describe("inspection payload service", () => {
   it("uses soft-prior reranked repairs when displaying selected verdict repair order", async () => {
     await seedRunWithSnapshot(snapshotWithRerankedRepairs("run:current"));
 
-    const payload = await buildRunInspectionPayload({
-      runId: "run:current",
-      verdictRunRepository,
-      verdictRepository
+    const payload = await buildPayload({
+      runId: "run:current"
     });
 
     const parsed = RunInspectionResponseSchema.parse(payload);
@@ -773,10 +1035,8 @@ describe("inspection payload service", () => {
       })
     );
 
-    const payload = await buildRunInspectionPayload({
-      runId: "run:no-snapshot",
-      verdictRunRepository,
-      verdictRepository
+    const payload = await buildPayload({
+      runId: "run:no-snapshot"
     });
 
     const parsed = RunInspectionResponseSchema.parse(payload);
@@ -795,17 +1055,13 @@ describe("inspection payload service", () => {
     await seedRunWithSnapshot();
 
     await expect(
-      buildRunInspectionPayload({
-        runId: "run:missing",
-        verdictRunRepository,
-        verdictRepository
+      buildPayload({
+        runId: "run:missing"
       })
     ).resolves.toBeUndefined();
 
-    const payload = await buildRunInspectionPayload({
-      runId: "run:current",
-      verdictRunRepository,
-      verdictRepository
+    const payload = await buildPayload({
+      runId: "run:current"
     });
     const serialized = JSON.stringify(payload);
     expect(serialized).not.toContain("sourceWorkIds");

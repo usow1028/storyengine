@@ -1,5 +1,6 @@
 import {
   CanonicalEventSchema,
+  InspectionOperationalSummarySchema,
   IngestionWorkflowStateSchema,
   type DraftCheckScope,
   type DraftSourceTextRef,
@@ -193,6 +194,37 @@ function buildVerdictRunScope(
   };
 }
 
+function buildInspectionOperationalSummary(
+  snapshot: IngestionSessionSnapshot
+) {
+  const unresolvedSegmentCount = snapshot.segments.filter(
+    ({ segment }) =>
+      !segment.stale &&
+      segment.workflowState !== "approved" &&
+      segment.workflowState !== "checked" &&
+      segment.workflowState !== "failed" &&
+      segment.workflowState !== "partial_failure"
+  ).length;
+  const staleSegmentCount = snapshot.progressSummary.staleSegments;
+  const failedSegmentCount = snapshot.progressSummary.failedSegments;
+  const warningKinds = [
+    ...(staleSegmentCount > 0 ? ["stale_segments" as const] : []),
+    ...(unresolvedSegmentCount > 0 ? ["unresolved_segments" as const] : []),
+    ...(failedSegmentCount > 0 ? ["failed_segments" as const] : [])
+  ];
+
+  return InspectionOperationalSummarySchema.parse({
+    workflowState: snapshot.session.workflowState,
+    totalSegmentCount: snapshot.progressSummary.totalSegments,
+    approvedSegmentCount: snapshot.progressSummary.approvedSegments,
+    staleSegmentCount,
+    unresolvedSegmentCount,
+    failedSegmentCount,
+    warningCount: staleSegmentCount + unresolvedSegmentCount + failedSegmentCount,
+    warningKinds
+  });
+}
+
 export async function executeIngestionCheck(
   sessionId: string,
   dependencies: ExecuteIngestionCheckDependencies,
@@ -256,7 +288,8 @@ export async function executeIngestionCheck(
     triggerKind: "manual",
     createdAt,
     softPriorConfig: dependencies.softPriorConfig,
-    scope: scope ? buildVerdictRunScope(snapshot, scope, resolvedScopeSegments) : undefined
+    scope: scope ? buildVerdictRunScope(snapshot, scope, resolvedScopeSegments) : undefined,
+    inspectionOperationalSummary: buildInspectionOperationalSummary(snapshot)
   });
 
   await dependencies.ingestionSessionRepository.setSessionState(sessionId, "checked", {
