@@ -1,11 +1,19 @@
 import { z } from "zod";
 
 import {
+  DraftCheckScopeSchema,
+  DraftDocumentIdSchema,
+  DraftDocumentSchema,
+  DraftRevisionIdSchema,
+  DraftRevisionSchema,
+  DraftSectionSchema,
+  DraftSegmentPathSchema,
+  DraftSourceTextRefSchema,
+  IngestionSessionSnapshotSchema,
   RepairCandidateSchema,
   RepairPlausibilityAdjustmentSchema,
   RunInspectionResponseSchema,
   ReviewSegmentPatchSchema,
-  IngestionSessionSnapshotSchema,
   SoftPriorAssessmentSchema,
   SubmissionInputKindSchema
 } from "../domain/index.js";
@@ -25,11 +33,21 @@ export const SubmitIngestionRequestSchema = z
     storyId: z.string().trim().min(1).optional(),
     revisionId: z.string().trim().min(1).optional(),
     draftTitle: z.string().trim().min(1).optional(),
+    draft: z
+      .object({
+        documentId: DraftDocumentIdSchema.optional(),
+        draftRevisionId: DraftRevisionIdSchema.optional(),
+        title: z.string().trim().min(1).optional(),
+        basedOnDraftRevisionId: DraftRevisionIdSchema.nullable().optional()
+      })
+      .optional(),
     defaultRulePackName: z.string().trim().min(1).optional()
   })
   .superRefine((value, ctx) => {
     const hasExistingTarget = Boolean(value.storyId && value.revisionId);
-    if (!hasExistingTarget && !value.draftTitle) {
+    const hasDraftTarget = Boolean(value.draftTitle || value.draft?.title);
+
+    if (!hasExistingTarget && !hasDraftTarget) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Provide storyId/revisionId or draftTitle.",
@@ -45,11 +63,20 @@ export type ExtractSubmissionRequest = z.infer<typeof ExtractSubmissionRequestSc
 export const ReviewSegmentPatchRequestSchema = ReviewSegmentPatchSchema;
 export type ReviewSegmentPatchRequest = z.infer<typeof ReviewSegmentPatchRequestSchema>;
 
+export const IngestionResponseDraftSchema = z.object({
+  document: DraftDocumentSchema,
+  revision: DraftRevisionSchema
+});
+export type IngestionResponseDraft = z.infer<typeof IngestionResponseDraftSchema>;
+
 export const IngestionSessionResponseSchema = z.object({
   sessionId: z.string().min(1),
   workflowState: z.string().min(1),
   storyId: z.string().nullable(),
   revisionId: z.string().nullable(),
+  draft: IngestionResponseDraftSchema.nullable(),
+  sections: z.array(DraftSectionSchema).default([]),
+  scopes: z.array(DraftCheckScopeSchema).default([]),
   segments: z.array(
     z.object({
       segmentId: z.string().min(1),
@@ -59,6 +86,8 @@ export const IngestionSessionResponseSchema = z.object({
       startOffset: z.number().int().nonnegative(),
       endOffset: z.number().int().nonnegative(),
       segmentText: z.string().min(1),
+      draftPath: DraftSegmentPathSchema.nullable(),
+      sourceTextRef: DraftSourceTextRefSchema.nullable(),
       approvedAt: z.string().nullable(),
       candidates: z.array(
         z.object({
@@ -121,6 +150,9 @@ export function serializeIngestionSessionResponse(snapshotInput: unknown): Inges
     workflowState: snapshot.session.workflowState,
     storyId: snapshot.session.storyId ?? null,
     revisionId: snapshot.session.revisionId ?? null,
+    draft: snapshot.session.draft ?? null,
+    sections: snapshot.draftSections ?? [],
+    scopes: snapshot.checkScopes ?? [],
     segments: snapshot.segments.map(({ segment, candidates }) => ({
       segmentId: segment.segmentId,
       label: segment.label,
@@ -129,6 +161,8 @@ export function serializeIngestionSessionResponse(snapshotInput: unknown): Inges
       startOffset: segment.startOffset,
       endOffset: segment.endOffset,
       segmentText: segment.segmentText,
+      draftPath: segment.draftPath ?? null,
+      sourceTextRef: segment.sourceTextRef ?? null,
       approvedAt: segment.approvedAt ?? null,
       candidates: candidates.map((candidate) => ({
         candidateId: candidate.candidateId,

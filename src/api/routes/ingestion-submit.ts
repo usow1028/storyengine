@@ -21,7 +21,11 @@ export function registerIngestionSubmitRoutes(
           text: body.text,
           storyId: body.storyId,
           revisionId: body.revisionId,
-          draftTitle: body.draftTitle,
+          draft: body.draft,
+          documentId: body.draft?.documentId,
+          draftRevisionId: body.draft?.draftRevisionId,
+          basedOnDraftRevisionId: body.draft?.basedOnDraftRevisionId,
+          draftTitle: body.draft?.title ?? body.draftTitle,
           defaultRulePackName: body.defaultRulePackName
         },
         dependencies
