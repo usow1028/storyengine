@@ -475,4 +475,86 @@ describe("ingestion check controls api", () => {
     expectNoRequestPriorConfigFields(extract);
     expectNoRequestPriorConfigFields(patch);
   });
+
+  it("does not require scope input for existing approved chunk checks", async () => {
+    const llmClient = createConfiguredIngestionLlmClient({
+      modelName: "test-model",
+      extractor: async ({ segmentId }) => ({
+        candidates: [
+          {
+            candidateId: `${segmentId}:entity`,
+            candidateKind: "entity",
+            canonicalKey: "entity:alice",
+            confidence: 0.94,
+            sourceSpanStart: 0,
+            sourceSpanEnd: 5,
+            provenanceDetail: { source: "api-test" },
+            payload: { name: "Alice" }
+          }
+        ]
+      })
+    });
+
+    const app = buildStoryGraphApi({
+      ingestionSessionRepository: repository,
+      storyRepository,
+      ruleRepository,
+      provenanceRepository,
+      verdictRepository,
+      verdictRunRepository,
+      llmClient,
+      generateId: () => "chunk-check-scope",
+      now: () => "2026-04-11T03:57:00Z"
+    });
+
+    const submitResponse = await app.inject({
+      method: "POST",
+      url: "/api/ingestion/submissions",
+      payload: {
+        submissionKind: "chunk",
+        text: "Alice wakes up.",
+        draftTitle: "Check Draft"
+      }
+    });
+    expect(submitResponse.statusCode).toBe(201);
+    const submitted = submitResponse.json();
+
+    const extractResponse = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/extract`,
+      payload: {}
+    });
+    expect(extractResponse.statusCode).toBe(200);
+    const extracted = extractResponse.json();
+
+    const patchResponse = await app.inject({
+      method: "PATCH",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/segments/${submitted.segments[0].segmentId}`,
+      payload: {
+        candidateCorrections: [
+          {
+            candidateId: extracted.segments[0].candidates[0].candidateId,
+            correctedPayload: correctedCharacterPayload("Alice", submitted.sessionId)
+          }
+        ]
+      }
+    });
+    expect(patchResponse.statusCode).toBe(200);
+
+    const approveResponse = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/segments/${submitted.segments[0].segmentId}/approve`
+    });
+    expect(approveResponse.statusCode).toBe(200);
+    expect(approveResponse.json().workflowState).toBe("approved");
+
+    const checkResponse = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/check`
+    });
+    expect(checkResponse.statusCode).toBe(200);
+    expect(checkResponse.json().workflowState).toBe("checked");
+
+    await app.close();
+  });
 });

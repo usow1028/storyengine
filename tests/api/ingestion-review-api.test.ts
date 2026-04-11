@@ -187,4 +187,128 @@ describe("ingestion review api", () => {
 
     await app.close();
   });
+
+  it("serializes draft hierarchy and source refs for chapter-scale submissions", async () => {
+    const llmClient = createConfiguredIngestionLlmClient({
+      modelName: "test-model",
+      extractor: async () => ({ candidates: [] })
+    });
+
+    const app = buildStoryGraphApi({
+      ingestionSessionRepository: repository,
+      storyRepository,
+      ruleRepository,
+      provenanceRepository,
+      verdictRepository,
+      verdictRunRepository,
+      llmClient,
+      generateId: () => "api-chapter",
+      now: () => "2026-04-11T03:55:00Z"
+    });
+
+    const submitResponse = await app.inject({
+      method: "POST",
+      url: "/api/ingestion/submissions",
+      payload: {
+        submissionKind: "full_draft",
+        text: "Chapter 1\r\nAlice waits.\r\n\r\nSection 2\r\nBob arrives.",
+        storyId: "story:api-chapter",
+        revisionId: "revision:api-chapter:1",
+        draft: {
+          documentId: "draft-document:api-chapter",
+          draftRevisionId: "draft-revision:api-chapter:1",
+          title: "API Chapter Draft"
+        }
+      }
+    });
+
+    expect(submitResponse.statusCode).toBe(201);
+    const submitted = submitResponse.json();
+    expect(submitted).toMatchObject({
+      sessionId: "session:api-chapter",
+      workflowState: "submitted",
+      storyId: "story:api-chapter",
+      revisionId: "revision:api-chapter:1"
+    });
+    expect(submitted.segments).toHaveLength(2);
+    expect(submitted.draft.document.documentId).toBe("draft-document:api-chapter");
+    expect(submitted.draft.revision.draftRevisionId).toBe("draft-revision:api-chapter:1");
+    expect(submitted.sections[0].sectionKind).toBe("chapter");
+    expect(submitted.scopes[0].scopeKind).toBe("full_approved_draft");
+    expect(submitted.segments[0].draftPath.documentId).toBe("draft-document:api-chapter");
+    expect(submitted.segments[0].sourceTextRef.textNormalization).toBe("lf");
+
+    const readResponse = await app.inject({
+      method: "GET",
+      url: "/api/ingestion/submissions/session:api-chapter"
+    });
+
+    expect(readResponse.statusCode).toBe(200);
+    const readPayload = readResponse.json();
+    expect(readPayload.draft.document.documentId).toBe("draft-document:api-chapter");
+    expect(readPayload.sections[0].sectionKind).toBe("chapter");
+    expect(readPayload.scopes[0].scopeKind).toBe("full_approved_draft");
+    expect(readPayload.segments[0].sourceTextRef.textNormalization).toBe("lf");
+
+    await app.close();
+  });
+
+  it("keeps legacy chunk submit and read fields stable", async () => {
+    const llmClient = createConfiguredIngestionLlmClient({
+      modelName: "test-model",
+      extractor: async () => ({ candidates: [] })
+    });
+
+    const app = buildStoryGraphApi({
+      ingestionSessionRepository: repository,
+      storyRepository,
+      ruleRepository,
+      provenanceRepository,
+      verdictRepository,
+      verdictRunRepository,
+      llmClient,
+      generateId: () => "api-legacy-chunk",
+      now: () => "2026-04-11T03:56:00Z"
+    });
+
+    const submitResponse = await app.inject({
+      method: "POST",
+      url: "/api/ingestion/submissions",
+      payload: {
+        submissionKind: "chunk",
+        text: "Alice waits.",
+        draftTitle: "Legacy Chunk Draft"
+      }
+    });
+
+    expect(submitResponse.statusCode).toBe(201);
+    const submitted = submitResponse.json();
+    expect(submitted).toMatchObject({
+      sessionId: "session:api-legacy-chunk",
+      workflowState: "submitted",
+      storyId: "story:draft:session:api-legacy-chunk",
+      revisionId: "revision:draft:session:api-legacy-chunk"
+    });
+    expect(submitted.segments).toHaveLength(1);
+    expect(submitted.segments[0].label).toBe("Chunk 1");
+    expect(submitted.draft.document.documentId).toBe("draft-document:session:api-legacy-chunk");
+
+    const readResponse = await app.inject({
+      method: "GET",
+      url: "/api/ingestion/submissions/session:api-legacy-chunk"
+    });
+
+    expect(readResponse.statusCode).toBe(200);
+    const readPayload = readResponse.json();
+    expect(readPayload).toMatchObject({
+      sessionId: "session:api-legacy-chunk",
+      workflowState: "submitted",
+      storyId: "story:draft:session:api-legacy-chunk",
+      revisionId: "revision:draft:session:api-legacy-chunk"
+    });
+    expect(readPayload.segments).toHaveLength(1);
+    expect(readPayload.draft.document.documentId).toBe("draft-document:session:api-legacy-chunk");
+
+    await app.close();
+  });
 });
