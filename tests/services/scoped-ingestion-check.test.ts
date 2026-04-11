@@ -14,6 +14,19 @@ import {
 } from "../../src/storage/index.js";
 import { buildImpossibleTravelFixture } from "../fixtures/hard-constraint-fixtures.js";
 
+const executeScopedIngestionCheck = executeIngestionCheck as unknown as (
+  sessionId: string,
+  dependencies: {
+    ingestionSessionRepository: IngestionSessionRepository;
+    storyRepository: StoryRepository;
+    ruleRepository: RuleRepository;
+    verdictRepository: VerdictRepository;
+    verdictRunRepository: VerdictRunRepository;
+    now?: () => string;
+  },
+  options: { scopeId: string }
+) => ReturnType<typeof executeIngestionCheck>;
+
 function createTestClient() {
   const memory = newDb({ autoCreateForeignKeyIndices: true });
   const adapter = memory.adapters.createPg();
@@ -126,7 +139,14 @@ async function seedScopedSession(input: {
           },
           sourceTextRef: createSourceTextRef(sessionId, 0, 13),
           workflowState: "approved",
-          approvedAt: "2026-04-11T07:11:00Z"
+          approvedAt: "2026-04-11T07:11:00Z",
+          attemptCount: 0,
+          lastExtractionAt: null,
+          lastAttemptStatus: null,
+          lastFailureSummary: null,
+          stale: false,
+          staleReason: null,
+          currentAttemptId: null
         },
         sourceTextRef: createSourceTextRef(sessionId, 0, 13),
         draftPath: {
@@ -158,7 +178,13 @@ async function seedScopedSession(input: {
           sourceTextRef: createSourceTextRef(sessionId, 15, 28),
           workflowState: input.secondSegmentState,
           approvedAt: input.secondSegmentApprovedAt ?? null,
-          stale: input.secondSegmentStale ?? false
+          attemptCount: 0,
+          lastExtractionAt: null,
+          lastAttemptStatus: null,
+          lastFailureSummary: null,
+          stale: input.secondSegmentStale ?? false,
+          staleReason: null,
+          currentAttemptId: null
         },
         sourceTextRef: createSourceTextRef(sessionId, 15, 28),
         draftPath: {
@@ -219,7 +245,14 @@ async function seedScopedSession(input: {
       },
       sourceTextRef: createSourceTextRef(sessionId, 0, 13),
       workflowState: "approved",
-      approvedAt: "2026-04-11T07:11:00Z"
+      approvedAt: "2026-04-11T07:11:00Z",
+      attemptCount: 0,
+      lastExtractionAt: null,
+      lastAttemptStatus: null,
+      lastFailureSummary: null,
+      stale: false,
+      staleReason: null,
+      currentAttemptId: null
     },
     {
       segmentId: secondSegmentId,
@@ -241,7 +274,13 @@ async function seedScopedSession(input: {
       sourceTextRef: createSourceTextRef(sessionId, 15, 28),
       workflowState: input.secondSegmentState,
       approvedAt: input.secondSegmentApprovedAt ?? null,
-      stale: input.secondSegmentStale ?? false
+      attemptCount: 0,
+      lastExtractionAt: null,
+      lastAttemptStatus: null,
+      lastFailureSummary: null,
+      stale: input.secondSegmentStale ?? false,
+      staleReason: null,
+      currentAttemptId: null
     }
   ]);
 
@@ -254,29 +293,53 @@ async function seedScopedSession(input: {
         candidates: [
           {
             candidateId: `${firstSegmentId}:event:airport`,
+            sessionId,
+            segmentId: firstSegmentId,
             candidateKind: "event",
             canonicalKey: "event:airport",
             confidence: 0.99,
+            reviewNeeded: false,
+            reviewNeededReason: null,
             sourceSpanStart: 0,
             sourceSpanEnd: 13,
             provenanceDetail: { source: "scoped-check-fixture" },
-            payload: fixture.graph.events[0]
+            extractedPayload: fixture.graph.events[0],
+            correctedPayload: null,
+            normalizedPayload: fixture.graph.events[0]
           }
         ]
       },
       {
         segmentId: secondSegmentId,
         workflowState: input.secondSegmentState,
+        attempt: input.secondSegmentStale
+          ? {
+              attemptId: `${secondSegmentId}:attempt:1`,
+              attemptNumber: 1,
+              requestKind: "targeted_retry",
+              status: "success",
+              invalidatedApproval: true,
+              startedAt: "2026-04-11T07:11:30Z",
+              finishedAt: "2026-04-11T07:11:35Z",
+              errorSummary: null
+            }
+          : undefined,
         candidates: [
           {
             candidateId: `${secondSegmentId}:event:meeting`,
+            sessionId,
+            segmentId: secondSegmentId,
             candidateKind: "event",
             canonicalKey: "event:meeting",
             confidence: 0.99,
+            reviewNeeded: false,
+            reviewNeededReason: null,
             sourceSpanStart: 15,
             sourceSpanEnd: 28,
             provenanceDetail: { source: "scoped-check-fixture" },
-            payload: fixture.graph.events[1]
+            extractedPayload: fixture.graph.events[1],
+            correctedPayload: null,
+            normalizedPayload: fixture.graph.events[1]
           }
         ]
       }
@@ -313,7 +376,7 @@ describe("scoped ingestion checks", () => {
       secondSegmentState: "needs_review"
     });
 
-    const result = await executeIngestionCheck(
+    const result = await executeScopedIngestionCheck(
       sessionId,
       {
         ingestionSessionRepository,
@@ -348,7 +411,7 @@ describe("scoped ingestion checks", () => {
     });
 
     await expect(
-      executeIngestionCheck(
+      executeScopedIngestionCheck(
         sessionId,
         {
           ingestionSessionRepository,

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import type { VerdictKind, VerdictRecord } from "../domain/index.js";
+import type { VerdictKind, VerdictRecord, VerdictRunScope } from "../domain/index.js";
 import {
   evaluateRevision,
   generateRepairCandidates,
@@ -34,6 +34,7 @@ export interface ExecuteVerdictRunInput {
   boundaryFactsByEventId?: Record<string, Record<string, CharacterBoundaryFacts>>;
   createdAt?: string;
   softPriorConfig?: SoftPriorRuntimeConfig;
+  scope?: VerdictRunScope;
 }
 
 export interface ExecuteVerdictRunResult {
@@ -97,6 +98,20 @@ function selectHardVerdictKind(verdicts: VerdictRecord[]): VerdictKind {
   return priority.find((kind) => verdicts.some((verdict) => verdict.verdictKind === kind)) ?? "Consistent";
 }
 
+function retainScopedVerdicts(
+  verdicts: Array<{ eventId: string; verdict: VerdictRecord }>,
+  scope?: VerdictRunScope
+): VerdictRecord[] {
+  if (!scope) {
+    return verdicts.map((entry) => entry.verdict);
+  }
+
+  const scopeEventIds = new Set(scope.eventIds);
+  return verdicts
+    .filter((entry) => scopeEventIds.has(entry.eventId))
+    .map((entry) => entry.verdict);
+}
+
 export async function executeVerdictRun(
   input: ExecuteVerdictRunInput
 ): Promise<ExecuteVerdictRunResult> {
@@ -118,7 +133,8 @@ export async function executeVerdictRun(
     revisionId: input.revisionId,
     previousRunId: previousRun?.runId,
     triggerKind: input.triggerKind ?? "manual",
-    createdAt
+    createdAt,
+    scope: input.scope
   });
 
   const evaluations = await evaluateRevision({
@@ -127,7 +143,7 @@ export async function executeVerdictRun(
     boundaryFactsByEventId: input.boundaryFactsByEventId
   });
   const events = orderedEvents(graph);
-  const verdicts = evaluations.map((evaluation, index) => {
+  const scopedVerdicts = evaluations.map((evaluation, index) => {
     const event = events[index];
     if (!event) {
       throw new Error("Evaluation/event alignment failed.");
@@ -145,14 +161,18 @@ export async function executeVerdictRun(
     });
 
     return {
-      ...verdict,
-      evidence: {
-        ...verdict.evidence,
-        findingId: createFindingId(verdict)
-      }
-    } satisfies VerdictRecord;
+      eventId: event.eventId,
+      verdict: {
+        ...verdict,
+        evidence: {
+          ...verdict.evidence,
+          findingId: createFindingId(verdict)
+        }
+      } satisfies VerdictRecord
+    };
   });
 
+  const verdicts = retainScopedVerdicts(scopedVerdicts, input.scope);
   await input.verdictRepository.saveMany(verdicts);
   const repairs = generateRepairCandidates({ sources: buildRepairSources(verdicts) });
   const softPrior = await evaluateConfiguredSoftPrior({
