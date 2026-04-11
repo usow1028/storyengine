@@ -18,6 +18,18 @@ test("serves the inspection console and verifies verdict exploration in Chromium
 
   await expect(page.getByRole("heading", { name: "Inspection Console" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Verdict Triage" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Mixed-state warning banner" })
+  ).toBeVisible();
+  await expect(page.getByLabel("Chapter or section filter")).toBeVisible();
+  await expect(page.getByLabel("Review state filter")).toBeVisible();
+  await expect(page.getByLabel("Segment filter")).toBeVisible();
+  await expect(
+    page.locator(".verdict-subgroup-heading").filter({ hasText: "Chapter 1" }).first()
+  ).toBeVisible();
+  await expect(
+    page.locator(".verdict-subgroup-heading").filter({ hasText: "Chapter 2" }).first()
+  ).toBeVisible();
   await expect(page.getByText("landing", { exact: false })).toHaveCount(0);
   await expect(page.getByText("marketing", { exact: false })).toHaveCount(0);
   await expect(page.getByText("onboarding", { exact: false })).toHaveCount(0);
@@ -38,9 +50,16 @@ test("serves the inspection console and verifies verdict exploration in Chromium
   await expect(page.getByRole("heading", { name: "Repair Candidates" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Structured Trace" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Advisory Pattern Signal" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Source Context" })).toBeVisible();
   await expect(
     page.getByText("Pattern signal only. Hard verdict remains deterministic.")
   ).toBeVisible();
+
+  await page.getByLabel("Review state filter").selectOption("stale");
+  await expect(page.locator(".triage-rail .verdict-row")).toHaveCount(1);
+  await expect(page.locator(".triage-rail")).toContainText("Arrival beat 1");
+  await expect(page.locator(".triage-rail")).not.toContainText("Arrival beat 2");
+  await page.getByLabel("Review state filter").selectOption("all");
 
   await page.getByRole("button", { name: "Show Structured Trace" }).click();
   await expect(page.getByText("Conflict path", { exact: true })).toBeVisible();
@@ -65,6 +84,8 @@ test("serves the inspection console and verifies verdict exploration in Chromium
   expect(apiResponse.headers()["content-type"]).toContain("application/json");
   const apiText = await apiResponse.text();
   expect(apiText).toContain("Hard Contradiction");
+  expect(apiText).toContain("operationalSummary");
+  expect(apiText).toContain("secondaryGroup");
 
   const htmlResponse = await request.get(INSPECTION_ROUTE);
   expect(htmlResponse.status()).toBe(200);

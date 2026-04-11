@@ -1,6 +1,7 @@
 export type {
   InspectionEvidenceSummary,
   InspectionGroup,
+  InspectionOperationalSummary,
   InspectionRepairCandidate,
   InspectionRun,
   InspectionVerdictDetail,

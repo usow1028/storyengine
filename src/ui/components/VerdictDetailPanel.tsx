@@ -26,6 +26,10 @@ function optionalField(value: string | null): string {
   return value ?? "None";
 }
 
+function formatSourceSpan(startOffset: number, endOffset: number): string {
+  return `${startOffset}-${endOffset}`;
+}
+
 export function VerdictDetailPanel({ detail }: VerdictDetailPanelProps) {
   if (!detail) {
     return (
@@ -86,6 +90,41 @@ export function VerdictDetailPanel({ detail }: VerdictDetailPanelProps) {
 
       <EvidenceSummary detail={detail} />
       <EvidenceTimeline timeline={detail.timeline} />
+      {detail.sourceContext ? (
+        <section className="detail-section" aria-labelledby="source-context-heading">
+          <h3 id="source-context-heading">Source Context</h3>
+          <dl className="field-grid">
+            <div>
+              <dt>Section</dt>
+              <dd>{optionalField(detail.sourceContext.sectionLabel)}</dd>
+            </div>
+            <div>
+              <dt>Segment</dt>
+              <dd>{optionalField(detail.sourceContext.segmentLabel)}</dd>
+            </div>
+            <div>
+              <dt>Review state</dt>
+              <dd>{optionalField(detail.sourceContext.reviewState)}</dd>
+            </div>
+          </dl>
+          {detail.sourceContext.sourceSpans.length > 0 ? (
+            <ul className="detail-source-spans">
+              {detail.sourceContext.sourceSpans.map((sourceSpan) => (
+                <li
+                  key={`${sourceSpan.sessionId}:${sourceSpan.startOffset}:${sourceSpan.endOffset}`}
+                >
+                  <span className="verdict-chip">
+                    {sourceSpan.sourceKind}
+                  </span>
+                  <span className="detail-source-span-copy">
+                    {formatSourceSpan(sourceSpan.startOffset, sourceSpan.endOffset)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
+      ) : null}
       <TraceFields trace={detail.trace} />
       <RepairCandidates repairs={detail.repairs} />
       <SoftPriorAdvisoryBand advisory={detail.advisory} />
