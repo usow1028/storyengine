@@ -43,6 +43,17 @@ const SubmitIngestionSessionInputSchema = z
     storyId: z.string().trim().min(1).optional(),
     revisionId: z.string().trim().min(1).optional(),
     draftTitle: z.string().trim().min(1).optional(),
+    draft: z
+      .object({
+        documentId: z.string().trim().min(1).optional(),
+        draftRevisionId: z.string().trim().min(1).optional(),
+        title: z.string().trim().min(1).optional(),
+        basedOnDraftRevisionId: z.string().trim().min(1).nullable().optional()
+      })
+      .optional(),
+    documentId: z.string().trim().min(1).optional(),
+    draftRevisionId: z.string().trim().min(1).optional(),
+    basedOnDraftRevisionId: z.string().trim().min(1).nullable().optional(),
     defaultRulePackName: z.string().trim().min(1).optional(),
     sessionId: z.string().trim().min(1).optional(),
     createdAt: z.string().min(1).optional()
@@ -490,15 +501,33 @@ export async function submitIngestionSession(
   const createdAt = parsed.createdAt ?? now();
   const sessionId = parsed.sessionId ?? `session:${generateId()}`;
   const target = createSessionTarget(parsed, sessionId);
+  const plan = planDraftSubmission({
+    sessionId,
+    inputKind: parsed.submissionKind,
+    rawText: parsed.text,
+    storyId: target.storyId,
+    revisionId: target.revisionId,
+    documentId: parsed.documentId ?? parsed.draft?.documentId,
+    draftRevisionId: parsed.draftRevisionId ?? parsed.draft?.draftRevisionId,
+    basedOnDraftRevisionId: parsed.basedOnDraftRevisionId ?? parsed.draft?.basedOnDraftRevisionId ?? null,
+    draftTitle: parsed.draft?.title ?? parsed.draftTitle,
+    createdAt
+  });
 
   const session = await dependencies.ingestionSessionRepository.createSession({
     sessionId,
-    storyId: target.storyId,
-    revisionId: target.revisionId,
-    draftTitle: parsed.draftTitle ?? "",
+    storyId: plan.document.storyId,
+    revisionId: plan.revision.revisionId,
+    draftTitle: plan.document.title,
+    draftDocumentId: plan.document.documentId,
+    draftRevisionId: plan.revision.draftRevisionId,
+    draft: {
+      document: plan.document,
+      revision: plan.revision
+    },
     defaultRulePackName: parsed.defaultRulePackName ?? "reality-default",
     inputKind: parsed.submissionKind,
-    rawText: parsed.text,
+    rawText: plan.normalizedRawText,
     workflowState: "submitted",
     promptFamily: PROMPT_FAMILY,
     modelName: dependencies.llmClient.modelName,
@@ -508,12 +537,11 @@ export async function submitIngestionSession(
     lastCheckedAt: null
   });
 
-  const segments = segmentSubmissionText({
-    sessionId: session.sessionId,
-    inputKind: session.inputKind,
-    rawText: session.rawText
-  });
-  await dependencies.ingestionSessionRepository.saveSegments(session.sessionId, segments);
+  await dependencies.ingestionSessionRepository.saveDraftPlan(session.sessionId, plan);
+  await dependencies.ingestionSessionRepository.saveSegments(
+    session.sessionId,
+    plan.segments.map(({ segment }) => segment)
+  );
 
   return dependencies.ingestionSessionRepository.loadSessionSnapshot(session.sessionId);
 }
