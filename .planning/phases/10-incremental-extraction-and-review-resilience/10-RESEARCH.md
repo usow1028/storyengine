@@ -434,17 +434,17 @@ await repository.approveSegment(sessionId, segmentId, { approvedAt, updatedAt: a
 
 없음. 본 문서의 사실 주장은 모두 현재 코드, 현재 설정, npm registry, 또는 공식 문서에 의해 검증되었고, 권고안은 그 근거들에서 도출한 설계 판단이다. [VERIFIED: src/services/ingestion-session.ts] [VERIFIED: package.json] [VERIFIED: npm registry] [CITED: https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/] [CITED: https://www.postgresql.org/docs/current/datatype-json.html]
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **승인된 세그먼트 재추출의 기본 HTTP semantics를 어떻게 고정할 것인가?**
    - What we know: context는 exact HTTP conflict semantics를 discretion으로 남겼지만 silent overwrite는 금지했다. [CITED: .planning/phases/10-incremental-extraction-and-review-resilience/10-CONTEXT.md]
-   - What's unclear: 기본값을 “always demote and retry”로 둘지 “409 unless explicit override”로 둘지는 아직 코드에 없다. [VERIFIED: src/api/routes/ingestion-extract.ts] [VERIFIED: src/api/schemas.ts]
-   - Recommendation: `409 unless allowApprovalReset=true`를 planner 기본값으로 잠가라. explicit intent가 더 안전하고 D-05/D-12를 동시에 만족한다. [CITED: .planning/phases/10-incremental-extraction-and-review-resilience/10-CONTEXT.md]
+   - Decision: Phase 10 planner baseline은 `409 unless allowApprovalReset=true`로 잠근다. 승인된 세그먼트를 재추출하려면 호출자가 approval reset intent를 명시해야 하며, 그렇지 않으면 API는 conflict로 거절한다. [CITED: .planning/phases/10-incremental-extraction-and-review-resilience/10-CONTEXT.md]
+   - Why this is locked: explicit override가 silent approval loss를 막고, approval demotion을 intentional action으로 제한하므로 DRAFT-01과 REVIEW-02를 동시에 만족한다. [CITED: .planning/REQUIREMENTS.md] [CITED: .planning/phases/10-incremental-extraction-and-review-resilience/10-CONTEXT.md]
 
 2. **Session/segment state를 완전히 분리할 것인가, 아니면 additive status summary로 충분한가?**
    - What we know: 현재 shared enum은 `partially_approved`를 session과 segment에 동시에 허용하고, failed/stale/extracting을 표현하지 못한다. [VERIFIED: src/domain/ingestion.ts]
-   - What's unclear: planner가 migration blast radius를 더 줄이고 싶다면 shared enum 유지 + additive summary fields도 가능하다. [VERIFIED: src/domain/ingestion.ts]
-   - Recommendation: planner는 split enum을 우선안으로 삼고, implementation cost가 과하면 equivalent explicit summary fields를 허용하라. 중요한 것은 “honest mixed-state visibility”이지 enum purity 자체가 아니다. [CITED: .planning/REQUIREMENTS.md] [CITED: .planning/phases/10-incremental-extraction-and-review-resilience/10-CONTEXT.md]
+   - Decision: Phase 10 plan은 session/segment state를 분리하는 방향을 우선안으로 고정하되, implementation blast radius가 과하면 equivalent explicit summary fields를 함께 도입해 mixed-state visibility를 반드시 유지한다. 즉, enum purity보다도 "honest mixed-state visibility"를 deliverable로 잠근다. [CITED: .planning/REQUIREMENTS.md] [CITED: .planning/phases/10-incremental-extraction-and-review-resilience/10-CONTEXT.md]
+   - Why this is locked: plan 10-01/10-02는 per-segment retry/error/stale metadata와 session-level progress summary를 함께 노출하도록 설계되어 있으므로, 이 결정은 현재 plan set과 일치하고 REVIEW-01/OPER-01의 observability 요구를 충족한다. [CITED: .planning/REQUIREMENTS.md]
 
 ## Environment Availability
 
