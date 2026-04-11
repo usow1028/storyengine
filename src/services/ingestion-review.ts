@@ -92,7 +92,11 @@ async function loadPromotionGraph(
   try {
     return await storyRepository.loadGraph(targetStoryId, targetRevisionId);
   } catch (error) {
-    if (isDraftTarget(session)) {
+    if (
+      isDraftTarget(session) ||
+      (error instanceof Error &&
+        error.message === `Story graph not found for story=${targetStoryId} revision=${targetRevisionId}`)
+    ) {
       return createEmptyGraph(session);
     }
 

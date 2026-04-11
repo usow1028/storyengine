@@ -8,9 +8,12 @@ import {
   DraftRevisionSchema,
   DraftSectionSchema,
   DraftSubmissionPlanSchema,
+  IngestionAttemptStatusSchema,
   IngestionCandidateRecordSchema,
+  IngestionProgressSummarySchema,
   IngestionSessionRecordSchema,
   IngestionSessionSnapshotSchema,
+  IngestionSegmentAttemptRecordSchema,
   IngestionSegmentRecordSchema,
   IngestionWorkflowStateSchema,
   ReviewSegmentPatchSchema,
@@ -18,8 +21,10 @@ import {
   SegmentApprovalResultSchema,
   StructuredExtractionBatchSchema,
   type IngestionCandidateRecord,
+  type IngestionProgressSummary,
   type IngestionSessionRecord,
   type IngestionSessionRecordInput,
+  type IngestionSegmentAttemptRecord,
   type IngestionSegmentSnapshot,
   type IngestionSessionSnapshot,
   type IngestionWorkflowState,
@@ -63,6 +68,26 @@ type SegmentRow = {
   sourceTextRef: unknown | null;
   workflowState: string;
   approvedAt: string | null;
+  attemptCount: number;
+  lastExtractionAt: string | null;
+  lastAttemptStatus: string | null;
+  lastFailureSummary: string | null;
+  stale: boolean;
+  staleReason: string | null;
+  currentAttemptId: string | null;
+};
+
+type AttemptRow = {
+  attemptId: string;
+  sessionId: string;
+  segmentId: string;
+  attemptNumber: number;
+  requestKind: string;
+  status: string;
+  invalidatedApproval: boolean;
+  startedAt: string;
+  finishedAt: string | null;
+  errorSummary: string | null;
 };
 
 type DraftRevisionJoinRow = {
@@ -121,6 +146,10 @@ function parseSessionRow(row: SessionRow): IngestionSessionRecord {
 
 function parseSegmentRow(row: SegmentRow) {
   return IngestionSegmentRecordSchema.parse(row);
+}
+
+function parseAttemptRow(row: AttemptRow): IngestionSegmentAttemptRecord {
+  return IngestionSegmentAttemptRecordSchema.parse(row);
 }
 
 function parseCandidateRow(row: CandidateRow): IngestionCandidateRecord {
@@ -186,6 +215,12 @@ function computeSessionWorkflowState(snapshot: IngestionSessionSnapshot): Ingest
   const approvedSegments = snapshot.segments.filter(
     ({ segment }) => segment.workflowState === "approved" || segment.approvedAt
   );
+  const failedSegments = snapshot.segments.filter(
+    ({ segment }) =>
+      segment.workflowState === "failed" ||
+      segment.workflowState === "partial_failure" ||
+      segment.lastAttemptStatus === "failed"
+  );
 
   if (approvedSegments.length === snapshot.segments.length && snapshot.segments.length > 0) {
     if (snapshot.session.workflowState === "checked" && snapshot.session.lastCheckedAt) {
@@ -193,6 +228,19 @@ function computeSessionWorkflowState(snapshot: IngestionSessionSnapshot): Ingest
     }
 
     return "approved";
+  }
+
+  if (failedSegments.length > 0) {
+    if (
+      approvedSegments.length > 0 ||
+      snapshot.segments.some(
+        ({ segment }) => segment.workflowState === "needs_review" || segment.workflowState === "extracted"
+      )
+    ) {
+      return "partial_failure";
+    }
+
+    return "failed";
   }
 
   if (approvedSegments.length > 0) {
@@ -203,11 +251,36 @@ function computeSessionWorkflowState(snapshot: IngestionSessionSnapshot): Ingest
     return "needs_review";
   }
 
+  if (snapshot.segments.some(({ segment }) => segment.workflowState === "extracting")) {
+    return "extracting";
+  }
+
   if (snapshot.segments.some(({ segment }) => segment.workflowState === "extracted")) {
     return "extracted";
   }
 
   return "submitted";
+}
+
+function computeProgressSummary(segments: IngestionSegmentSnapshot[]): IngestionProgressSummary {
+  return IngestionProgressSummarySchema.parse({
+    totalSegments: segments.length,
+    submittedSegments: segments.filter(({ segment }) => segment.workflowState === "submitted").length,
+    extractedSegments: segments.filter(
+      ({ segment, candidates, attempts }) =>
+        segment.lastAttemptStatus === "success" ||
+        attempts.some((attempt) => attempt.status === "success") ||
+        candidates.length > 0
+    ).length,
+    needsReviewSegments: segments.filter(({ segment }) => segment.workflowState === "needs_review").length,
+    approvedSegments: segments.filter(
+      ({ segment }) => segment.workflowState === "approved" || Boolean(segment.approvedAt)
+    ).length,
+    failedSegments: segments.filter(
+      ({ segment }) => segment.workflowState === "failed" || segment.lastAttemptStatus === "failed"
+    ).length,
+    staleSegments: segments.filter(({ segment }) => segment.stale).length
+  });
 }
 
 function assertSegmentBatchConsistency(batch: StructuredExtractionBatch): void {
@@ -511,71 +584,130 @@ export class IngestionSessionRepository {
 
     await withTransaction(this.client, async () => {
       for (const segment of batch.segments) {
+        const attempt = segment.attempt ? IngestionSegmentAttemptRecordSchema.parse(segment.attempt) : null;
         const updated = await this.client.query(
           `
             UPDATE ingestion_segments
-            SET workflow_state = $2
+            SET workflow_state = $2,
+                approved_at = CASE WHEN $4 THEN NULL ELSE approved_at END,
+                attempt_count = CASE WHEN $5 IS NULL THEN attempt_count ELSE $5 END,
+                last_extraction_at = CASE WHEN $6 IS NULL THEN last_extraction_at ELSE $6 END,
+                last_attempt_status = CASE WHEN $7 IS NULL THEN last_attempt_status ELSE $7 END,
+                last_failure_summary = CASE
+                  WHEN $7 = 'success' THEN NULL
+                  WHEN $8 IS NULL THEN last_failure_summary
+                  ELSE $8
+                END,
+                stale = CASE WHEN $4 THEN TRUE ELSE FALSE END,
+                stale_reason = CASE WHEN $4 THEN 'reextracted' ELSE NULL END,
+                current_attempt_id = CASE WHEN $9 IS NULL THEN current_attempt_id ELSE $9 END
             WHERE session_id = $1 AND segment_id = $3
           `,
-          [batch.sessionId, segment.workflowState, segment.segmentId]
+          [
+            batch.sessionId,
+            segment.workflowState,
+            segment.segmentId,
+            attempt?.invalidatedApproval ?? false,
+            attempt?.attemptNumber ?? null,
+            attempt?.finishedAt ?? attempt?.startedAt ?? null,
+            attempt ? IngestionAttemptStatusSchema.parse(attempt.status) : null,
+            attempt?.errorSummary ?? null,
+            attempt?.attemptId ?? null
+          ]
         );
 
         if (!updated.rowCount) {
           throw new Error(`Segment ${segment.segmentId} does not exist for session ${batch.sessionId}`);
         }
 
-        await this.client.query(
-          `
-            DELETE FROM ingestion_candidates
-            WHERE session_id = $1 AND segment_id = $2
-          `,
-          [batch.sessionId, segment.segmentId]
-        );
-
-        for (const candidate of segment.candidates) {
+        if (attempt) {
           await this.client.query(
             `
-              INSERT INTO ingestion_candidates (
-                candidate_id,
+              INSERT INTO ingestion_segment_attempts (
+                attempt_id,
                 session_id,
                 segment_id,
-                candidate_kind,
-                canonical_key,
-                confidence,
-                review_needed,
-                review_needed_reason,
-                source_span_start,
-                source_span_end,
-                provenance_detail,
-                extracted_payload,
-                corrected_payload,
-                normalized_payload
+                attempt_number,
+                request_kind,
+                status,
+                invalidated_approval,
+                started_at,
+                finished_at,
+                error_summary,
+                candidate_snapshot
               )
-              VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-                CAST($11 AS jsonb),
-                CAST($12 AS jsonb),
-                CAST($13 AS jsonb),
-                CAST($14 AS jsonb)
-              )
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CAST($11 AS jsonb))
             `,
             [
-              candidate.candidateId,
-              candidate.sessionId,
-              candidate.segmentId,
-              candidate.candidateKind,
-              candidate.canonicalKey,
-              candidate.confidence,
-              candidate.reviewNeeded,
-              candidate.reviewNeededReason ?? null,
-              candidate.sourceSpanStart,
-              candidate.sourceSpanEnd,
-              asJson(candidate.provenanceDetail),
-              asJson(candidate.extractedPayload),
-              asJson(candidate.correctedPayload),
-              asJson(candidate.normalizedPayload)
+              attempt.attemptId,
+              batch.sessionId,
+              segment.segmentId,
+              attempt.attemptNumber,
+              attempt.requestKind,
+              attempt.status,
+              attempt.invalidatedApproval,
+              attempt.startedAt,
+              attempt.finishedAt ?? null,
+              attempt.errorSummary ?? null,
+              asJson(segment.candidates)
             ]
           );
+        }
+
+        if (!attempt || attempt.status === "success") {
+          await this.client.query(
+            `
+              DELETE FROM ingestion_candidates
+              WHERE session_id = $1 AND segment_id = $2
+            `,
+            [batch.sessionId, segment.segmentId]
+          );
+
+          for (const candidate of segment.candidates) {
+            await this.client.query(
+              `
+                INSERT INTO ingestion_candidates (
+                  candidate_id,
+                  session_id,
+                  segment_id,
+                  candidate_kind,
+                  canonical_key,
+                  confidence,
+                  review_needed,
+                  review_needed_reason,
+                  source_span_start,
+                  source_span_end,
+                  provenance_detail,
+                  extracted_payload,
+                  corrected_payload,
+                  normalized_payload
+                )
+                VALUES (
+                  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+                  CAST($11 AS jsonb),
+                  CAST($12 AS jsonb),
+                  CAST($13 AS jsonb),
+                  CAST($14 AS jsonb)
+                )
+              `,
+              [
+                candidate.candidateId,
+                candidate.sessionId,
+                candidate.segmentId,
+                candidate.candidateKind,
+                candidate.canonicalKey,
+                candidate.confidence,
+                candidate.reviewNeeded,
+                candidate.reviewNeededReason ?? null,
+                candidate.sourceSpanStart,
+                candidate.sourceSpanEnd,
+                asJson(candidate.provenanceDetail),
+                asJson(candidate.extractedPayload),
+                asJson(candidate.correctedPayload),
+                asJson(candidate.normalizedPayload)
+              ]
+            );
+          }
         }
       }
     });
@@ -630,10 +762,39 @@ export class IngestionSessionRepository {
             draft_path AS "draftPath",
             source_text_ref AS "sourceTextRef",
             workflow_state AS "workflowState",
-            approved_at AS "approvedAt"
+            approved_at AS "approvedAt",
+            attempt_count AS "attemptCount",
+            last_extraction_at AS "lastExtractionAt",
+            last_attempt_status AS "lastAttemptStatus",
+            last_failure_summary AS "lastFailureSummary",
+            stale,
+            stale_reason AS "staleReason",
+            current_attempt_id AS "currentAttemptId"
           FROM ingestion_segments
           WHERE session_id = $1
           ORDER BY sequence, segment_id
+        `,
+        [sessionId]
+      )
+    ).rows;
+
+    const attemptRows = (
+      await this.client.query<AttemptRow>(
+        `
+          SELECT
+            attempt_id AS "attemptId",
+            session_id AS "sessionId",
+            segment_id AS "segmentId",
+            attempt_number AS "attemptNumber",
+            request_kind AS "requestKind",
+            status,
+            invalidated_approval AS "invalidatedApproval",
+            started_at AS "startedAt",
+            finished_at AS "finishedAt",
+            error_summary AS "errorSummary"
+          FROM ingestion_segment_attempts
+          WHERE session_id = $1
+          ORDER BY segment_id, attempt_number
         `,
         [sessionId]
       )
@@ -752,6 +913,23 @@ export class IngestionSessionRepository {
       candidatesBySegment.set(parsed.segmentId, existing);
     }
 
+    const attemptsBySegment = new Map<string, IngestionSegmentAttemptRecord[]>();
+    for (const row of attemptRows) {
+      const parsed = parseAttemptRow(row);
+      const existing = attemptsBySegment.get(row.segmentId) ?? [];
+      existing.push(parsed);
+      attemptsBySegment.set(row.segmentId, existing);
+    }
+
+    const segments = segmentRows.map((row) => {
+      const segment = parseSegmentRow(row);
+      return {
+        segment,
+        candidates: candidatesBySegment.get(segment.segmentId) ?? [],
+        attempts: attemptsBySegment.get(segment.segmentId) ?? []
+      };
+    });
+
     return IngestionSessionSnapshotSchema.parse({
       session: {
         ...parsedSession,
@@ -762,15 +940,10 @@ export class IngestionSessionRepository {
           revision: draftRevision
         }
       },
-      segments: segmentRows.map((row) => {
-        const segment = parseSegmentRow(row);
-        return {
-          segment,
-          candidates: candidatesBySegment.get(segment.segmentId) ?? []
-        };
-      }),
+      segments,
       draftSections: draftSectionRows.map(parseDraftSectionRow),
-      checkScopes: draftCheckScopeRows.map(parseDraftCheckScopeRow)
+      checkScopes: draftCheckScopeRows.map(parseDraftCheckScopeRow),
+      progressSummary: computeProgressSummary(segments)
     });
   }
 

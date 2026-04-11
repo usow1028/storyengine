@@ -34,13 +34,25 @@ export type SubmissionInputKind = z.infer<typeof SubmissionInputKindSchema>;
 
 export const IngestionWorkflowStateSchema = z.enum([
   "submitted",
+  "extracting",
   "extracted",
+  "failed",
+  "partial_failure",
   "needs_review",
   "partially_approved",
   "approved",
   "checked"
 ]);
 export type IngestionWorkflowState = z.infer<typeof IngestionWorkflowStateSchema>;
+
+export const IngestionAttemptRequestKindSchema = z.enum(["full_session", "targeted_retry"]);
+export type IngestionAttemptRequestKind = z.infer<typeof IngestionAttemptRequestKindSchema>;
+
+export const IngestionAttemptStatusSchema = z.enum(["success", "failed"]);
+export type IngestionAttemptStatus = z.infer<typeof IngestionAttemptStatusSchema>;
+
+export const IngestionStaleReasonSchema = z.enum(["boundary_changed", "review_patch", "reextracted"]);
+export type IngestionStaleReason = z.infer<typeof IngestionStaleReasonSchema>;
 
 export const StructuredCandidateKindSchema = z.enum([
   "entity",
@@ -115,10 +127,40 @@ export const IngestionSegmentRecordSchema = z.object({
   draftPath: z.lazy(() => DraftSegmentPathSchema).nullable().optional().default(null),
   sourceTextRef: z.lazy(() => DraftSourceTextRefSchema).nullable().optional().default(null),
   workflowState: IngestionWorkflowStateSchema,
-  approvedAt: z.string().nullable().optional().default(null)
+  approvedAt: z.string().nullable().optional().default(null),
+  attemptCount: z.number().int().nonnegative().optional().default(0),
+  lastExtractionAt: z.string().nullable().optional().default(null),
+  lastAttemptStatus: IngestionAttemptStatusSchema.nullable().optional().default(null),
+  lastFailureSummary: z.string().nullable().optional().default(null),
+  stale: z.boolean().optional().default(false),
+  staleReason: IngestionStaleReasonSchema.nullable().optional().default(null),
+  currentAttemptId: IngestionIdSchema.nullable().optional().default(null)
 });
 export type IngestionSegmentRecord = z.infer<typeof IngestionSegmentRecordSchema>;
 export type IngestionSegmentRecordInput = z.input<typeof IngestionSegmentRecordSchema>;
+
+export const IngestionSegmentAttemptRecordSchema = z.object({
+  attemptId: IngestionIdSchema,
+  attemptNumber: z.number().int().positive(),
+  requestKind: IngestionAttemptRequestKindSchema,
+  status: IngestionAttemptStatusSchema,
+  invalidatedApproval: z.boolean().default(false),
+  startedAt: z.string().min(1),
+  finishedAt: z.string().nullable().optional().default(null),
+  errorSummary: z.string().nullable().optional().default(null)
+});
+export type IngestionSegmentAttemptRecord = z.infer<typeof IngestionSegmentAttemptRecordSchema>;
+
+export const IngestionProgressSummarySchema = z.object({
+  totalSegments: z.number().int().nonnegative(),
+  submittedSegments: z.number().int().nonnegative(),
+  extractedSegments: z.number().int().nonnegative(),
+  needsReviewSegments: z.number().int().nonnegative(),
+  approvedSegments: z.number().int().nonnegative(),
+  failedSegments: z.number().int().nonnegative(),
+  staleSegments: z.number().int().nonnegative()
+});
+export type IngestionProgressSummary = z.infer<typeof IngestionProgressSummarySchema>;
 
 export const IngestionCandidateRecordSchema = z.object({
   candidateId: IngestionCandidateIdSchema,
@@ -203,7 +245,8 @@ export type SegmentApprovalResult = z.infer<typeof SegmentApprovalResultSchema>;
 export const StructuredExtractionSegmentSchema = z.object({
   segmentId: IngestionSegmentIdSchema,
   workflowState: IngestionWorkflowStateSchema,
-  candidates: z.array(IngestionCandidateRecordSchema).default([])
+  candidates: z.array(IngestionCandidateRecordSchema).default([]),
+  attempt: IngestionSegmentAttemptRecordSchema.optional()
 });
 export type StructuredExtractionSegment = z.infer<typeof StructuredExtractionSegmentSchema>;
 
@@ -215,7 +258,8 @@ export type StructuredExtractionBatch = z.infer<typeof StructuredExtractionBatch
 
 export const IngestionSegmentSnapshotSchema = z.object({
   segment: IngestionSegmentRecordSchema,
-  candidates: z.array(IngestionCandidateRecordSchema).default([])
+  candidates: z.array(IngestionCandidateRecordSchema).default([]),
+  attempts: z.array(IngestionSegmentAttemptRecordSchema).default([])
 });
 export type IngestionSegmentSnapshot = z.infer<typeof IngestionSegmentSnapshotSchema>;
 
@@ -223,6 +267,15 @@ export const IngestionSessionSnapshotSchema = z.object({
   session: IngestionSessionRecordSchema,
   segments: z.array(IngestionSegmentSnapshotSchema).default([]),
   draftSections: z.array(z.lazy(() => DraftSectionSchema)).default([]),
-  checkScopes: z.array(z.lazy(() => DraftCheckScopeSchema)).default([])
+  checkScopes: z.array(z.lazy(() => DraftCheckScopeSchema)).default([]),
+  progressSummary: IngestionProgressSummarySchema.default({
+    totalSegments: 0,
+    submittedSegments: 0,
+    extractedSegments: 0,
+    needsReviewSegments: 0,
+    approvedSegments: 0,
+    failedSegments: 0,
+    staleSegments: 0
+  })
 });
 export type IngestionSessionSnapshot = z.infer<typeof IngestionSessionSnapshotSchema>;

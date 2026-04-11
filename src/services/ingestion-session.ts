@@ -11,6 +11,7 @@ import {
   IngestionCandidateRecordSchema,
   IngestionSessionRecordSchema,
   IngestionSegmentRecordSchema,
+  IngestionSessionIdSchema,
   IngestionWorkflowStateSchema,
   ReviewNeededReasonSchema,
   RuleCandidateNormalizedPayloadSchema,
@@ -29,6 +30,7 @@ import {
   type IngestionLlmClient,
   type StructuredExtractionEnvelope
 } from "./ingestion-llm-client.js";
+import { IngestionConflictError, IngestionNotFoundError } from "./ingestion-review.js";
 
 const PROMPT_FAMILY = "phase5-default";
 const LOW_CONFIDENCE_THRESHOLD = 0.75;
@@ -82,6 +84,11 @@ type SubmitIngestionSessionDependencies = {
 
 type ExtractIngestionSessionDependencies = SubmitIngestionSessionDependencies;
 
+const ExtractIngestionSessionOptionsSchema = z.object({
+  targetSegmentIds: z.array(IngestionSegmentRecordSchema.shape.segmentId).optional(),
+  allowApprovalReset: z.boolean().optional().default(false)
+});
+
 type SessionTarget = {
   storyId: string;
   revisionId: string;
@@ -93,6 +100,11 @@ function defaultNow(): string {
 
 function defaultGenerateId(): string {
   return randomUUID();
+}
+
+function truncateErrorSummary(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.slice(0, 400);
 }
 
 function createSessionTarget(input: SubmitIngestionSessionInput, sessionId: string): SessionTarget {
@@ -401,9 +413,8 @@ function enrichPayload(candidateKind: IngestionCandidateRecord["candidateKind"],
   if (candidateKind === "entity" || candidateKind === "state_boundary" || candidateKind === "event" || candidateKind === "causal_link") {
     return {
       ...record,
-      storyId: typeof record.storyId === "string" && record.storyId.length > 0 ? record.storyId : target.storyId,
-      revisionId:
-        typeof record.revisionId === "string" && record.revisionId.length > 0 ? record.revisionId : target.revisionId
+      storyId: target.storyId,
+      revisionId: target.revisionId
     };
   }
 
@@ -414,9 +425,8 @@ function enrichPayload(candidateKind: IngestionCandidateRecord["candidateKind"],
     return {
       metadata: {
         ...metadata,
-        storyId: typeof metadata.storyId === "string" && metadata.storyId.length > 0 ? metadata.storyId : target.storyId,
-        revisionId:
-          typeof metadata.revisionId === "string" && metadata.revisionId.length > 0 ? metadata.revisionId : target.revisionId,
+        storyId: target.storyId,
+        revisionId: target.revisionId,
         sourceKind:
           typeof metadata.sourceKind === "string" && metadata.sourceKind.length > 0 ? metadata.sourceKind : "normalized"
       },
@@ -548,52 +558,118 @@ export async function submitIngestionSession(
 
 export async function extractIngestionSession(
   sessionId: string,
-  dependencies: ExtractIngestionSessionDependencies
+  dependencies: ExtractIngestionSessionDependencies & {
+    targetSegmentIds?: string[];
+    allowApprovalReset?: boolean;
+  }
 ): Promise<IngestionSessionSnapshot> {
   const generateId = dependencies.generateId ?? defaultGenerateId;
   const now = dependencies.now ?? defaultNow;
-  const snapshot = await dependencies.ingestionSessionRepository.loadSessionSnapshot(sessionId);
+  const parsedSessionId = IngestionSessionIdSchema.parse(sessionId);
+  const snapshot = await dependencies.ingestionSessionRepository.loadSessionSnapshot(parsedSessionId);
+  const options = ExtractIngestionSessionOptionsSchema.parse({
+    targetSegmentIds: dependencies.targetSegmentIds,
+    allowApprovalReset: dependencies.allowApprovalReset
+  });
+  const segmentIds = options.targetSegmentIds ?? snapshot.segments.map(({ segment }) => segment.segmentId);
+  const targetSegments = [];
+  const segmentById = new Map(snapshot.segments.map((entry) => [entry.segment.segmentId, entry] as const));
+  const seenSegmentIds = new Set<string>();
+
+  for (const segmentIdValue of segmentIds) {
+    if (seenSegmentIds.has(segmentIdValue)) {
+      throw new IngestionConflictError(`Duplicate segmentId ${segmentIdValue} is not allowed.`);
+    }
+    seenSegmentIds.add(segmentIdValue);
+
+    const targetSegment = segmentById.get(segmentIdValue);
+    if (!targetSegment) {
+      throw new IngestionNotFoundError(
+        `Segment ${segmentIdValue} does not exist for session ${snapshot.session.sessionId}.`
+      );
+    }
+
+    if ((targetSegment.segment.approvedAt || targetSegment.segment.workflowState === "approved") && !options.allowApprovalReset) {
+      throw new IngestionConflictError("Approved segments require allowApprovalReset=true before retry.");
+    }
+
+    targetSegments.push(targetSegment);
+  }
+
+  if (targetSegments.length === 0) {
+    throw new IngestionConflictError("At least one segmentId must be provided for extraction.");
+  }
+
+  const requestKind = targetSegments.length === snapshot.segments.length ? "full_session" : "targeted_retry";
 
   const batch = StructuredExtractionBatchSchema.parse({
     sessionId: snapshot.session.sessionId,
     segments: await Promise.all(
-      snapshot.segments.map(async ({ segment }) => {
-        const extraction = await dependencies.llmClient.extractSegment({
-          sessionId: snapshot.session.sessionId,
-          segmentId: segment.segmentId,
-          segmentText: segment.segmentText
-        });
-        const candidates = buildCandidateRecords({
-          sessionId: snapshot.session.sessionId,
-          segmentId: segment.segmentId,
-          target: {
-            storyId: snapshot.session.storyId ?? `story:draft:${snapshot.session.sessionId}`,
-            revisionId: snapshot.session.revisionId ?? `revision:draft:${snapshot.session.sessionId}`
-          },
-          extraction,
-          generateId
-        });
-        const workflowState: IngestionWorkflowState = candidates.some((candidate) => candidate.reviewNeeded)
-          ? "needs_review"
-          : "extracted";
+      targetSegments.map(async ({ segment, attempts }) => {
+        const attemptNumber = attempts.length + 1;
+        const attemptId = `attempt:${segment.segmentId}:${attemptNumber}`;
+        const startedAt = now();
+        const invalidatedApproval = Boolean(segment.approvedAt || segment.workflowState === "approved");
 
-        return {
-          segmentId: segment.segmentId,
-          workflowState,
-          candidates
-        };
+        try {
+          const extraction = await dependencies.llmClient.extractSegment({
+            sessionId: snapshot.session.sessionId,
+            segmentId: segment.segmentId,
+            segmentText: segment.segmentText
+          });
+          const candidates = buildCandidateRecords({
+            sessionId: snapshot.session.sessionId,
+            segmentId: segment.segmentId,
+            target: {
+              storyId: snapshot.session.storyId ?? `story:draft:${snapshot.session.sessionId}`,
+              revisionId: snapshot.session.revisionId ?? `revision:draft:${snapshot.session.sessionId}`
+            },
+            extraction,
+            generateId
+          });
+          const workflowState: IngestionWorkflowState =
+            invalidatedApproval || candidates.some((candidate) => candidate.reviewNeeded)
+              ? "needs_review"
+              : "extracted";
+
+          return {
+            segmentId: segment.segmentId,
+            workflowState,
+            candidates,
+            attempt: {
+              attemptId,
+              attemptNumber,
+              requestKind,
+              status: "success" as const,
+              invalidatedApproval,
+              startedAt,
+              finishedAt: now(),
+              errorSummary: null
+            }
+          };
+        } catch (error) {
+          return {
+            segmentId: segment.segmentId,
+            workflowState: "failed" as const,
+            candidates: [],
+            attempt: {
+              attemptId,
+              attemptNumber,
+              requestKind,
+              status: "failed" as const,
+              invalidatedApproval,
+              startedAt,
+              finishedAt: now(),
+              errorSummary: truncateErrorSummary(error)
+            }
+          };
+        }
       })
     )
   });
 
   await dependencies.ingestionSessionRepository.saveExtractionBatch(batch);
-  const sessionState: IngestionWorkflowState = batch.segments.some(
-    (segment) => segment.workflowState === "needs_review"
-  )
-    ? "needs_review"
-    : "extracted";
-
-  await dependencies.ingestionSessionRepository.setSessionState(snapshot.session.sessionId, sessionState, {
+  await dependencies.ingestionSessionRepository.recalculateSessionState(snapshot.session.sessionId, {
     updatedAt: now()
   });
 

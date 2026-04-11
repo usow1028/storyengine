@@ -9,6 +9,7 @@ export const canonicalTableNames = [
   "ingestion_sessions",
   "ingestion_segments",
   "ingestion_candidates",
+  "ingestion_segment_attempts",
   "draft_documents",
   "draft_revisions",
   "draft_sections",
