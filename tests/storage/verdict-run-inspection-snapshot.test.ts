@@ -146,4 +146,58 @@ describe("verdict run inspection snapshots", () => {
     expect(serialized).not.toContain("PriorSnapshot");
     expect(serialized).not.toContain("rawCorpusRows");
   });
+
+  it("saves and reloads scope-aware verdict run metadata", async () => {
+    const repository = new VerdictRunRepository(pool);
+    await seedRun(pool);
+
+    await repository.saveRun({
+      runId: "run:inspection-scoped",
+      storyId: "story:inspection",
+      revisionId: "revision:inspection",
+      triggerKind: "manual",
+      createdAt: "2026-04-10T09:05:00Z",
+      scope: {
+        scopeId: "scope:inspection:full",
+        scopeKind: "full_approved_draft",
+        comparisonScopeKey: "full:draft-document:scope",
+        segmentIds: ["segment:inspection:1", "segment:inspection:2"],
+        eventIds: ["event:inspection:1", "event:inspection:2"],
+        sourceTextRefs: [
+          {
+            sourceKind: "ingestion_session_raw_text",
+            sessionId: "session:inspection",
+            startOffset: 0,
+            endOffset: 28,
+            textNormalization: "lf"
+          }
+        ],
+        payload: {
+          scopeKind: "full_approved_draft",
+          scopeId: "scope:inspection:full",
+          documentId: "draft-document:scope",
+          draftRevisionId: "draft-revision:scope",
+          storyId: "story:inspection",
+          revisionId: "revision:inspection"
+        }
+      }
+    });
+
+    const loaded = await repository.getRun("run:inspection-scoped");
+
+    expect(loaded?.scope?.comparisonScopeKey).toBe("full:draft-document:scope");
+    expect(loaded?.scope?.scopeKind).toBe("full_approved_draft");
+    expect(loaded?.scope?.payload.scopeId).toBe("scope:inspection:full");
+    expect(loaded?.scope?.payload.scopeKind).toBe("full_approved_draft");
+    expect(loaded?.scope?.segmentIds).toEqual(["segment:inspection:1", "segment:inspection:2"]);
+    expect(loaded?.scope?.sourceTextRefs).toEqual([
+      {
+        sourceKind: "ingestion_session_raw_text",
+        sessionId: "session:inspection",
+        startOffset: 0,
+        endOffset: 28,
+        textNormalization: "lf"
+      }
+    ]);
+  });
 });
