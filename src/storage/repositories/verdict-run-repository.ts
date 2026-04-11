@@ -176,7 +176,7 @@ export class VerdictRunRepository {
             scope_payload AS "scopePayload"
           FROM verdict_runs
           WHERE story_id = $1
-            AND revision_id <> $2
+            AND revision_id = $2
             AND comparison_scope_key = $3
           ORDER BY created_at DESC, run_id DESC
           LIMIT 1
