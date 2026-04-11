@@ -18,7 +18,7 @@ import type {
   VerdictRunRecord
 } from "../domain/index.js";
 import type { VerdictRepository, VerdictRunRepository } from "../storage/index.js";
-import { diffAgainstPreviousRun } from "./verdict-diff.js";
+import { diffVerdictRuns, type VerdictDiffResult } from "./verdict-diff.js";
 import type { SoftPriorAdvisoryResult } from "./soft-prior-runtime.js";
 
 interface CreateRunInspectionSnapshotInput {
@@ -30,6 +30,8 @@ interface CreateRunInspectionSnapshotInput {
 
 interface BuildRunInspectionPayloadInput {
   runId: string;
+  baseRunId?: string;
+  baseRevisionId?: string;
   verdictRunRepository: VerdictRunRepository;
   verdictRepository: VerdictRepository;
 }
@@ -85,10 +87,15 @@ function serializeRun(run: VerdictRunRecord): RunInspectionResponse["run"] {
   };
 }
 
-function normalizeDiff(diff: Awaited<ReturnType<typeof diffAgainstPreviousRun>>): InspectionDiff {
+function normalizeDiff(diff: VerdictDiffResult): InspectionDiff {
   return InspectionDiffSchema.parse({
     ...diff,
-    previousRunId: diff.previousRunId ?? null
+    previousRunId: diff.previousRunId ?? null,
+    currentScopeId: diff.currentScopeId ?? null,
+    baseScopeId: diff.baseScopeId ?? null,
+    currentComparisonScopeKey: diff.currentComparisonScopeKey ?? null,
+    baseComparisonScopeKey: diff.baseComparisonScopeKey ?? null,
+    findingChanges: diff.findingChanges
   });
 }
 
@@ -248,8 +255,10 @@ export async function buildRunInspectionPayload(
   const snapshot = await input.verdictRunRepository.getInspectionSnapshot(run.runId);
   const advisory = snapshot?.advisory ?? missingInspectionSnapshotAdvisory();
   const diff = normalizeDiff(
-    await diffAgainstPreviousRun({
+    await diffVerdictRuns({
       currentRunId: run.runId,
+      baseRunId: input.baseRunId,
+      baseRevisionId: input.baseRevisionId,
       verdictRepository: input.verdictRepository,
       verdictRunRepository: input.verdictRunRepository
     })

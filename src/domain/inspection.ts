@@ -150,14 +150,34 @@ export const InspectionTraceFieldsSchema = z.object({
 });
 export type InspectionTraceFields = z.infer<typeof InspectionTraceFieldsSchema>;
 
+export const InspectionDiffFindingChangeSchema = z.object({
+  changeKind: z.enum(["added", "resolved", "persisted", "changed_supporting"]),
+  findingId: z.string().min(1),
+  verdictKind: VerdictKindSchema,
+  scopeId: z.string().min(1).nullable(),
+  comparisonScopeKey: z.string().min(1).nullable(),
+  representativeChecker: CheckerKindSchema.nullable(),
+  reasonCode: z.string().min(1).nullable(),
+  eventIds: z.array(EventIdSchema).default([]),
+  stateBoundaryIds: z.array(StateBoundaryIdSchema).default([]),
+  ruleVersionIds: z.array(RuleVersionIdSchema).default([]),
+  provenanceIds: z.array(ProvenanceIdSchema).default([])
+});
+export type InspectionDiffFindingChange = z.infer<typeof InspectionDiffFindingChangeSchema>;
+
 export const InspectionDiffSchema = z.object({
   currentRunId: z.string().min(1),
   previousRunId: z.string().min(1).nullable(),
+  currentScopeId: z.string().min(1).nullable(),
+  baseScopeId: z.string().min(1).nullable(),
+  currentComparisonScopeKey: z.string().min(1).nullable(),
+  baseComparisonScopeKey: z.string().min(1).nullable(),
   representativeVerdictChanged: z.boolean(),
   addedFindingIds: z.array(z.string().min(1)).default([]),
   resolvedFindingIds: z.array(z.string().min(1)).default([]),
   persistedFindingIds: z.array(z.string().min(1)).default([]),
-  changedSupportingFindings: z.array(z.string().min(1)).default([])
+  changedSupportingFindings: z.array(z.string().min(1)).default([]),
+  findingChanges: z.array(InspectionDiffFindingChangeSchema).default([])
 });
 export type InspectionDiff = z.infer<typeof InspectionDiffSchema>;
 
