@@ -3,6 +3,11 @@ import {
   CanonicalEventSchema,
   CausalLinkSchema,
   CharacterStateBoundarySchema,
+  DraftCheckScopeSchema,
+  DraftDocumentSchema,
+  DraftRevisionSchema,
+  DraftSectionSchema,
+  DraftSubmissionPlanSchema,
   IngestionCandidateRecordSchema,
   IngestionSessionRecordSchema,
   IngestionSessionSnapshotSchema,
@@ -20,7 +25,8 @@ import {
   type IngestionWorkflowState,
   type ReviewSegmentPatch,
   type SegmentApprovalResult,
-  type StructuredExtractionBatch
+  type StructuredExtractionBatch,
+  type DraftSubmissionPlan
 } from "../../domain/index.js";
 import { asJson, withTransaction, type SqlQueryable } from "../db.js";
 
@@ -29,6 +35,8 @@ type SessionRow = {
   storyId: string | null;
   revisionId: string | null;
   draftTitle: string;
+  draftDocumentId: string | null;
+  draftRevisionId: string | null;
   defaultRulePackName: string;
   inputKind: string;
   rawText: string;
@@ -49,8 +57,39 @@ type SegmentRow = {
   startOffset: number;
   endOffset: number;
   segmentText: string;
+  draftRevisionId: string | null;
+  sectionId: string | null;
+  draftPath: unknown | null;
+  sourceTextRef: unknown | null;
   workflowState: string;
   approvedAt: string | null;
+};
+
+type DraftRevisionJoinRow = {
+  draftRevisionId: string;
+  documentId: string;
+  storyId: string;
+  revisionId: string;
+  basedOnDraftRevisionId: string | null;
+  createdAt: string;
+  title: string;
+  documentCreatedAt: string;
+  documentUpdatedAt: string;
+};
+
+type DraftSectionRow = {
+  sectionId: string;
+  draftRevisionId: string;
+  sectionKind: string;
+  sequence: number;
+  label: string;
+  sourceTextRef: unknown;
+};
+
+type DraftCheckScopeRow = {
+  scopeId: string;
+  scopeKind: string;
+  payload: unknown;
 };
 
 type CandidateRow = {
@@ -86,6 +125,46 @@ function parseSegmentRow(row: SegmentRow) {
 
 function parseCandidateRow(row: CandidateRow): IngestionCandidateRecord {
   return IngestionCandidateRecordSchema.parse(row);
+}
+
+function buildCompatibilityDraft(session: IngestionSessionRecord) {
+  const documentId = session.draftDocumentId ?? `draft-document:${session.sessionId}`;
+  const storyId = session.storyId ?? `story:draft:${session.sessionId}`;
+  const draftRevisionId = session.draftRevisionId ?? `draft-revision:${session.sessionId}`;
+  const revisionId = session.revisionId ?? `revision:draft:${session.sessionId}`;
+
+  return {
+    document: DraftDocumentSchema.parse({
+      documentId,
+      storyId,
+      title: session.draftTitle,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt
+    }),
+    revision: DraftRevisionSchema.parse({
+      draftRevisionId,
+      documentId,
+      storyId,
+      revisionId,
+      basedOnDraftRevisionId: null,
+      createdAt: session.createdAt
+    })
+  };
+}
+
+function parseDraftSectionRow(row: DraftSectionRow) {
+  return DraftSectionSchema.parse({
+    sectionId: row.sectionId,
+    draftRevisionId: row.draftRevisionId,
+    sectionKind: row.sectionKind,
+    sequence: row.sequence,
+    label: row.label,
+    sourceTextRef: row.sourceTextRef
+  });
+}
+
+function parseDraftCheckScopeRow(row: DraftCheckScopeRow) {
+  return DraftCheckScopeSchema.parse(row.payload);
 }
 
 function normalizeCandidatePayload(candidate: IngestionCandidateRecord, payload: unknown) {
@@ -158,6 +237,8 @@ export class IngestionSessionRepository {
           story_id,
           revision_id,
           draft_title,
+          draft_document_id,
+          draft_revision_id,
           default_rule_pack_name,
           input_kind,
           raw_text,
@@ -169,11 +250,13 @@ export class IngestionSessionRepository {
           updated_at,
           last_checked_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         ON CONFLICT (session_id) DO UPDATE SET
           story_id = EXCLUDED.story_id,
           revision_id = EXCLUDED.revision_id,
           draft_title = EXCLUDED.draft_title,
+          draft_document_id = EXCLUDED.draft_document_id,
+          draft_revision_id = EXCLUDED.draft_revision_id,
           default_rule_pack_name = EXCLUDED.default_rule_pack_name,
           input_kind = EXCLUDED.input_kind,
           raw_text = EXCLUDED.raw_text,
@@ -190,6 +273,8 @@ export class IngestionSessionRepository {
         session.storyId ?? null,
         session.revisionId ?? null,
         session.draftTitle,
+        session.draftDocumentId ?? null,
+        session.draftRevisionId ?? null,
         session.defaultRulePackName,
         session.inputKind,
         session.rawText,
@@ -204,6 +289,156 @@ export class IngestionSessionRepository {
     );
 
     return session;
+  }
+
+  async saveDraftPlan(sessionIdInput: string, planInput: DraftSubmissionPlan): Promise<void> {
+    const sessionId = IngestionSessionRecordSchema.shape.sessionId.parse(sessionIdInput);
+    const plan = DraftSubmissionPlanSchema.parse(planInput);
+
+    for (const entry of plan.segments) {
+      if (entry.segment.sessionId !== sessionId || entry.sourceTextRef.sessionId !== sessionId) {
+        throw new Error(`Draft plan segment ${entry.segment.segmentId} does not belong to session ${sessionId}`);
+      }
+    }
+
+    await withTransaction(this.client, async () => {
+      const sessionUpdate = await this.client.query(
+        `
+          UPDATE ingestion_sessions
+          SET draft_document_id = $2,
+              draft_revision_id = $3,
+              updated_at = $4
+          WHERE session_id = $1
+        `,
+        [
+          sessionId,
+          plan.document.documentId,
+          plan.revision.draftRevisionId,
+          plan.document.updatedAt
+        ]
+      );
+
+      if (!sessionUpdate.rowCount) {
+        throw new Error(`Ingestion session not found: ${sessionId}`);
+      }
+
+      await this.client.query(
+        `
+          INSERT INTO draft_documents (
+            document_id,
+            story_id,
+            title,
+            created_at,
+            updated_at
+          )
+          VALUES ($1, $2, $3, $4, $5)
+          ON CONFLICT (document_id) DO UPDATE SET
+            story_id = EXCLUDED.story_id,
+            title = EXCLUDED.title,
+            created_at = EXCLUDED.created_at,
+            updated_at = EXCLUDED.updated_at
+        `,
+        [
+          plan.document.documentId,
+          plan.document.storyId,
+          plan.document.title,
+          plan.document.createdAt,
+          plan.document.updatedAt
+        ]
+      );
+
+      await this.client.query(
+        `
+          INSERT INTO draft_revisions (
+            draft_revision_id,
+            document_id,
+            story_id,
+            revision_id,
+            based_on_draft_revision_id,
+            created_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $6)
+          ON CONFLICT (draft_revision_id) DO UPDATE SET
+            document_id = EXCLUDED.document_id,
+            story_id = EXCLUDED.story_id,
+            revision_id = EXCLUDED.revision_id,
+            based_on_draft_revision_id = EXCLUDED.based_on_draft_revision_id,
+            created_at = EXCLUDED.created_at
+        `,
+        [
+          plan.revision.draftRevisionId,
+          plan.revision.documentId,
+          plan.revision.storyId,
+          plan.revision.revisionId,
+          plan.revision.basedOnDraftRevisionId ?? null,
+          plan.revision.createdAt
+        ]
+      );
+
+      await this.client.query(
+        `
+          DELETE FROM draft_sections
+          WHERE draft_revision_id = $1
+        `,
+        [plan.revision.draftRevisionId]
+      );
+
+      for (const section of plan.sections) {
+        await this.client.query(
+          `
+            INSERT INTO draft_sections (
+              section_id,
+              draft_revision_id,
+              section_kind,
+              sequence,
+              label,
+              source_text_ref
+            )
+            VALUES ($1, $2, $3, $4, $5, CAST($6 AS jsonb))
+          `,
+          [
+            section.sectionId,
+            section.draftRevisionId,
+            section.sectionKind,
+            section.sequence,
+            section.label,
+            asJson(section.sourceTextRef)
+          ]
+        );
+      }
+
+      await this.client.query(
+        `
+          DELETE FROM draft_check_scopes
+          WHERE session_id = $1
+        `,
+        [sessionId]
+      );
+
+      for (const scope of plan.checkScopes) {
+        await this.client.query(
+          `
+            INSERT INTO draft_check_scopes (
+              scope_id,
+              session_id,
+              draft_revision_id,
+              scope_kind,
+              payload,
+              created_at
+            )
+            VALUES ($1, $2, $3, $4, CAST($5 AS jsonb), $6)
+          `,
+          [
+            scope.scopeId,
+            sessionId,
+            plan.revision.draftRevisionId,
+            scope.scopeKind,
+            asJson(scope),
+            plan.revision.createdAt
+          ]
+        );
+      }
+    });
   }
 
   async saveSegments(input: IngestionSessionRecord["sessionId"], segmentsInput: unknown[]): Promise<void> {
@@ -228,10 +463,14 @@ export class IngestionSessionRepository {
               start_offset,
               end_offset,
               segment_text,
+              draft_revision_id,
+              section_id,
+              draft_path,
+              source_text_ref,
               workflow_state,
               approved_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CAST($10 AS jsonb), CAST($11 AS jsonb), $12, $13)
             ON CONFLICT (segment_id) DO UPDATE SET
               session_id = EXCLUDED.session_id,
               sequence = EXCLUDED.sequence,
@@ -239,6 +478,10 @@ export class IngestionSessionRepository {
               start_offset = EXCLUDED.start_offset,
               end_offset = EXCLUDED.end_offset,
               segment_text = EXCLUDED.segment_text,
+              draft_revision_id = EXCLUDED.draft_revision_id,
+              section_id = EXCLUDED.section_id,
+              draft_path = EXCLUDED.draft_path,
+              source_text_ref = EXCLUDED.source_text_ref,
               workflow_state = EXCLUDED.workflow_state,
               approved_at = EXCLUDED.approved_at
           `,
@@ -250,6 +493,10 @@ export class IngestionSessionRepository {
             segment.startOffset,
             segment.endOffset,
             segment.segmentText,
+            segment.draftRevisionId ?? null,
+            segment.sectionId ?? null,
+            asJson(segment.draftPath),
+            asJson(segment.sourceTextRef),
             segment.workflowState,
             segment.approvedAt ?? null
           ]
@@ -344,6 +591,8 @@ export class IngestionSessionRepository {
             story_id AS "storyId",
             revision_id AS "revisionId",
             draft_title AS "draftTitle",
+            draft_document_id AS "draftDocumentId",
+            draft_revision_id AS "draftRevisionId",
             default_rule_pack_name AS "defaultRulePackName",
             input_kind AS "inputKind",
             raw_text AS "rawText",
@@ -376,6 +625,10 @@ export class IngestionSessionRepository {
             start_offset AS "startOffset",
             end_offset AS "endOffset",
             segment_text AS "segmentText",
+            draft_revision_id AS "draftRevisionId",
+            section_id AS "sectionId",
+            draft_path AS "draftPath",
+            source_text_ref AS "sourceTextRef",
             workflow_state AS "workflowState",
             approved_at AS "approvedAt"
           FROM ingestion_segments
@@ -412,6 +665,85 @@ export class IngestionSessionRepository {
       )
     ).rows;
 
+    const parsedSession = parseSessionRow(sessionRow);
+    const compatibilityDraft = buildCompatibilityDraft(parsedSession);
+    const draftRevisionIdForLookup =
+      sessionRow.draftRevisionId ?? compatibilityDraft.revision.draftRevisionId;
+
+    const storedDraftRow = (
+      await this.client.query<DraftRevisionJoinRow>(
+        `
+          SELECT
+            dr.draft_revision_id AS "draftRevisionId",
+            dr.document_id AS "documentId",
+            dr.story_id AS "storyId",
+            dr.revision_id AS "revisionId",
+            dr.based_on_draft_revision_id AS "basedOnDraftRevisionId",
+            dr.created_at AS "createdAt",
+            dd.title,
+            dd.created_at AS "documentCreatedAt",
+            dd.updated_at AS "documentUpdatedAt"
+          FROM draft_revisions dr
+          JOIN draft_documents dd ON dd.document_id = dr.document_id
+          WHERE dr.draft_revision_id = $1
+        `,
+        [draftRevisionIdForLookup]
+      )
+    ).rows[0];
+
+    const draftDocument = storedDraftRow
+      ? DraftDocumentSchema.parse({
+          documentId: storedDraftRow.documentId,
+          storyId: storedDraftRow.storyId,
+          title: storedDraftRow.title,
+          createdAt: storedDraftRow.documentCreatedAt,
+          updatedAt: storedDraftRow.documentUpdatedAt
+        })
+      : compatibilityDraft.document;
+    const draftRevision = storedDraftRow
+      ? DraftRevisionSchema.parse({
+          draftRevisionId: storedDraftRow.draftRevisionId,
+          documentId: storedDraftRow.documentId,
+          storyId: storedDraftRow.storyId,
+          revisionId: storedDraftRow.revisionId,
+          basedOnDraftRevisionId: storedDraftRow.basedOnDraftRevisionId,
+          createdAt: storedDraftRow.createdAt
+        })
+      : compatibilityDraft.revision;
+
+    const draftSectionRows = (
+      await this.client.query<DraftSectionRow>(
+        `
+          SELECT
+            section_id AS "sectionId",
+            draft_revision_id AS "draftRevisionId",
+            section_kind AS "sectionKind",
+            sequence,
+            label,
+            source_text_ref AS "sourceTextRef"
+          FROM draft_sections
+          WHERE draft_revision_id = $1
+          ORDER BY sequence, section_id
+        `,
+        [draftRevision.draftRevisionId]
+      )
+    ).rows;
+
+    const draftCheckScopeRows = (
+      await this.client.query<DraftCheckScopeRow>(
+        `
+          SELECT
+            scope_id AS "scopeId",
+            scope_kind AS "scopeKind",
+            payload
+          FROM draft_check_scopes
+          WHERE session_id = $1
+          ORDER BY scope_id
+        `,
+        [sessionId]
+      )
+    ).rows;
+
     const candidatesBySegment = new Map<string, IngestionCandidateRecord[]>();
     for (const row of candidateRows) {
       const parsed = parseCandidateRow(row);
@@ -421,14 +753,24 @@ export class IngestionSessionRepository {
     }
 
     return IngestionSessionSnapshotSchema.parse({
-      session: parseSessionRow(sessionRow),
+      session: {
+        ...parsedSession,
+        draftDocumentId: draftDocument.documentId,
+        draftRevisionId: draftRevision.draftRevisionId,
+        draft: {
+          document: draftDocument,
+          revision: draftRevision
+        }
+      },
       segments: segmentRows.map((row) => {
         const segment = parseSegmentRow(row);
         return {
           segment,
           candidates: candidatesBySegment.get(segment.segmentId) ?? []
         };
-      })
+      }),
+      draftSections: draftSectionRows.map(parseDraftSectionRow),
+      checkScopes: draftCheckScopeRows.map(parseDraftCheckScopeRow)
     });
   }
 
@@ -456,6 +798,19 @@ export class IngestionSessionRepository {
     const nextLabel = patch.boundary?.label ?? segmentSnapshot.segment.label;
     const nextStartOffset = patch.boundary?.startOffset ?? segmentSnapshot.segment.startOffset;
     const nextEndOffset = patch.boundary?.endOffset ?? segmentSnapshot.segment.endOffset;
+    const nextSourceTextRef =
+      segmentSnapshot.segment.sourceTextRef ||
+      segmentSnapshot.segment.draftRevisionId ||
+      segmentSnapshot.segment.sectionId ||
+      segmentSnapshot.segment.draftPath
+        ? {
+            sourceKind: "ingestion_session_raw_text" as const,
+            sessionId,
+            startOffset: nextStartOffset,
+            endOffset: nextEndOffset,
+            textNormalization: "lf" as const
+          }
+        : null;
 
     if (nextStartOffset > nextEndOffset) {
       throw new Error(`Segment ${segmentId} has an invalid boundary patch.`);
@@ -468,7 +823,8 @@ export class IngestionSessionRepository {
           SET label = $3,
               start_offset = $4,
               end_offset = $5,
-              workflow_state = $6
+              workflow_state = $6,
+              source_text_ref = CAST($7 AS jsonb)
           WHERE session_id = $1 AND segment_id = $2
         `,
         [
@@ -477,7 +833,8 @@ export class IngestionSessionRepository {
           nextLabel,
           nextStartOffset,
           nextEndOffset,
-          segmentSnapshot.segment.approvedAt ? "approved" : "needs_review"
+          segmentSnapshot.segment.approvedAt ? "approved" : "needs_review",
+          asJson(nextSourceTextRef)
         ]
       );
 
