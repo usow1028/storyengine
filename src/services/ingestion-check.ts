@@ -42,6 +42,19 @@ export async function executeIngestionCheck(
   const snapshot = await dependencies.ingestionSessionRepository.loadSessionSnapshot(sessionId);
   const workflowState = IngestionWorkflowStateSchema.parse(snapshot.session.workflowState);
 
+  if (
+    !snapshot.segments.every(
+      ({ segment }) =>
+        segment.workflowState === "approved" &&
+        segment.approvedAt !== null &&
+        segment.stale === false
+    )
+  ) {
+    throw new IngestionConflictError(
+      `Session ${sessionId} must have every segment approved and current before a manual check can run.`
+    );
+  }
+
   if (workflowState !== "approved") {
     throw new IngestionConflictError(
       `Session ${sessionId} must be approved before a manual check can run.`
