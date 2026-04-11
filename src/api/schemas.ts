@@ -57,7 +57,12 @@ export const SubmitIngestionRequestSchema = z
   });
 export type SubmitIngestionRequest = z.infer<typeof SubmitIngestionRequestSchema>;
 
-export const ExtractSubmissionRequestSchema = z.object({}).default({});
+export const ExtractSubmissionRequestSchema = z
+  .object({
+    segmentIds: z.array(z.string().min(1)).optional(),
+    allowApprovalReset: z.boolean().optional().default(false)
+  })
+  .default({ allowApprovalReset: false });
 export type ExtractSubmissionRequest = z.infer<typeof ExtractSubmissionRequestSchema>;
 
 export const ReviewSegmentPatchRequestSchema = ReviewSegmentPatchSchema;
@@ -77,6 +82,15 @@ export const IngestionSessionResponseSchema = z.object({
   draft: IngestionResponseDraftSchema.nullable(),
   sections: z.array(DraftSectionSchema).default([]),
   scopes: z.array(DraftCheckScopeSchema).default([]),
+  progressSummary: z.object({
+    totalSegments: z.number().int().nonnegative(),
+    submittedSegments: z.number().int().nonnegative(),
+    extractedSegments: z.number().int().nonnegative(),
+    needsReviewSegments: z.number().int().nonnegative(),
+    approvedSegments: z.number().int().nonnegative(),
+    failedSegments: z.number().int().nonnegative(),
+    staleSegments: z.number().int().nonnegative()
+  }),
   segments: z.array(
     z.object({
       segmentId: z.string().min(1),
@@ -89,6 +103,25 @@ export const IngestionSessionResponseSchema = z.object({
       draftPath: DraftSegmentPathSchema.nullable(),
       sourceTextRef: DraftSourceTextRefSchema.nullable(),
       approvedAt: z.string().nullable(),
+      attemptCount: z.number().int().nonnegative(),
+      lastExtractionAt: z.string().nullable(),
+      lastAttemptStatus: z.enum(["success", "failed"]).nullable(),
+      lastFailureSummary: z.string().nullable(),
+      stale: z.boolean(),
+      staleReason: z.enum(["boundary_changed", "review_patch", "reextracted"]).nullable(),
+      currentAttemptId: z.string().nullable(),
+      attempts: z.array(
+        z.object({
+          attemptId: z.string().min(1),
+          attemptNumber: z.number().int().positive(),
+          requestKind: z.enum(["full_session", "targeted_retry"]),
+          status: z.enum(["success", "failed"]),
+          invalidatedApproval: z.boolean(),
+          startedAt: z.string().min(1),
+          finishedAt: z.string().nullable(),
+          errorSummary: z.string().nullable()
+        })
+      ).default([]),
       candidates: z.array(
         z.object({
           candidateId: z.string().min(1),
@@ -153,7 +186,8 @@ export function serializeIngestionSessionResponse(snapshotInput: unknown): Inges
     draft: snapshot.session.draft ?? null,
     sections: snapshot.draftSections ?? [],
     scopes: snapshot.checkScopes ?? [],
-    segments: snapshot.segments.map(({ segment, candidates }) => ({
+    progressSummary: snapshot.progressSummary,
+    segments: snapshot.segments.map(({ segment, candidates, attempts }) => ({
       segmentId: segment.segmentId,
       label: segment.label,
       sequence: segment.sequence,
@@ -164,6 +198,23 @@ export function serializeIngestionSessionResponse(snapshotInput: unknown): Inges
       draftPath: segment.draftPath ?? null,
       sourceTextRef: segment.sourceTextRef ?? null,
       approvedAt: segment.approvedAt ?? null,
+      attemptCount: segment.attemptCount,
+      lastExtractionAt: segment.lastExtractionAt ?? null,
+      lastAttemptStatus: segment.lastAttemptStatus ?? null,
+      lastFailureSummary: segment.lastFailureSummary ?? null,
+      stale: segment.stale,
+      staleReason: segment.staleReason ?? null,
+      currentAttemptId: segment.currentAttemptId ?? null,
+      attempts: attempts.map((attempt) => ({
+        attemptId: attempt.attemptId,
+        attemptNumber: attempt.attemptNumber,
+        requestKind: attempt.requestKind,
+        status: attempt.status,
+        invalidatedApproval: attempt.invalidatedApproval,
+        startedAt: attempt.startedAt,
+        finishedAt: attempt.finishedAt ?? null,
+        errorSummary: attempt.errorSummary ?? null
+      })),
       candidates: candidates.map((candidate) => ({
         candidateId: candidate.candidateId,
         candidateKind: candidate.candidateKind,
