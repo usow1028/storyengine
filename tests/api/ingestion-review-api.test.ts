@@ -405,4 +405,95 @@ describe("ingestion review api", () => {
 
     await app.close();
   });
+
+  it("retries approved targets only when allowApprovalReset is true", async () => {
+    const llmClient = createConfiguredIngestionLlmClient({
+      modelName: "test-model",
+      extractor: async ({ segmentId }) => {
+        const name = segmentId.endsWith(":1") ? "Alice" : "Bob";
+        return {
+          candidates: [
+            {
+              candidateId: `${segmentId}:retry`,
+              candidateKind: "entity",
+              canonicalKey: `entity:${name.toLowerCase()}`,
+              confidence: 0.95,
+              sourceSpanStart: 0,
+              sourceSpanEnd: name.length,
+              provenanceDetail: { source: "retry-test" },
+              payload: correctedCharacterPayload(name, "session:approved-retry")
+            }
+          ]
+        };
+      }
+    });
+
+    const app = buildStoryGraphApi({
+      ingestionSessionRepository: repository,
+      storyRepository,
+      ruleRepository,
+      provenanceRepository,
+      verdictRepository,
+      verdictRunRepository,
+      llmClient,
+      generateId: () => "approved-retry",
+      now: () => "2026-04-11T07:20:00Z"
+    });
+
+    const submitResponse = await app.inject({
+      method: "POST",
+      url: "/api/ingestion/submissions",
+      payload: {
+        sessionId: "session:approved-retry",
+        submissionKind: "full_draft",
+        text: "Alice waits.\n\nBob leaves.",
+        draftTitle: "Approved Retry Draft"
+      }
+    });
+    expect(submitResponse.statusCode).toBe(201);
+    const submitted = submitResponse.json();
+
+    const extractResponse = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/extract`,
+      payload: {}
+    });
+    expect(extractResponse.statusCode).toBe(200);
+
+    const approveResponse = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/segments/segment:session:approved-retry:2/approve`
+    });
+    expect(approveResponse.statusCode).toBe(200);
+    const approvedAt = approveResponse.json().segments[1].approvedAt;
+
+    const blockedRetry = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/extract`,
+      payload: {
+        segmentIds: ["segment:session:approved-retry:2"],
+        allowApprovalReset: false
+      }
+    });
+    expect(blockedRetry.statusCode).toBe(409);
+    expect(blockedRetry.json().message).toContain("allowApprovalReset=true");
+
+    const reopenedRetry = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/extract`,
+      payload: {
+        segmentIds: ["segment:session:approved-retry:2"],
+        allowApprovalReset: true
+      }
+    });
+    expect(reopenedRetry.statusCode).toBe(200);
+    const reopened = reopenedRetry.json();
+    expect(reopened.segments[0].approvedAt).toBeNull();
+    expect(reopened.segments[1].approvedAt).toBeNull();
+    expect(reopened.segments[1].stale).toBe(true);
+    expect(reopened.segments[1].staleReason).toBe("reextracted");
+    expect(approvedAt).not.toBeNull();
+
+    await app.close();
+  });
 });

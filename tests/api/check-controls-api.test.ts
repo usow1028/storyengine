@@ -476,6 +476,108 @@ describe("ingestion check controls api", () => {
     expectNoRequestPriorConfigFields(patch);
   });
 
+  it("blocks full-session check after retry reset until the reopened segment is reapproved", async () => {
+    const llmClient = createConfiguredIngestionLlmClient({
+      modelName: "test-model",
+      extractor: async ({ segmentId, sessionId }) => {
+        const name = segmentId.endsWith(":1") ? "Alice" : "Bob";
+        return {
+          candidates: [
+            {
+              candidateId: `${segmentId}:entity`,
+              candidateKind: "entity",
+              canonicalKey: `entity:${name.toLowerCase()}`,
+              confidence: 0.94,
+              sourceSpanStart: 0,
+              sourceSpanEnd: name.length,
+              provenanceDetail: { source: "api-test" },
+              payload: correctedCharacterPayload(name, sessionId)
+            }
+          ]
+        };
+      }
+    });
+
+    const app = buildStoryGraphApi({
+      ingestionSessionRepository: repository,
+      storyRepository,
+      ruleRepository,
+      provenanceRepository,
+      verdictRepository,
+      verdictRunRepository,
+      llmClient,
+      generateId: () => "retry-reset-check",
+      now: () => "2026-04-11T07:30:00Z"
+    });
+
+    const submitResponse = await app.inject({
+      method: "POST",
+      url: "/api/ingestion/submissions",
+      payload: {
+        sessionId: "session:retry-reset-check",
+        submissionKind: "full_draft",
+        text: "Alice waits.\n\nBob leaves.",
+        draftTitle: "Retry Reset Check Draft"
+      }
+    });
+    expect(submitResponse.statusCode).toBe(201);
+    const submitted = submitResponse.json();
+
+    const extractResponse = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/extract`,
+      payload: {}
+    });
+    expect(extractResponse.statusCode).toBe(200);
+
+    const firstApprove = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/segments/segment:session:retry-reset-check:1/approve`
+    });
+    const secondApprove = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/segments/segment:session:retry-reset-check:2/approve`
+    });
+    expect(firstApprove.statusCode).toBe(200);
+    expect(secondApprove.statusCode).toBe(200);
+    const untouchedApprovedAt = secondApprove.json().segments[1].approvedAt;
+
+    const reopened = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/extract`,
+      payload: {
+        segmentIds: ["segment:session:retry-reset-check:1"],
+        allowApprovalReset: true
+      }
+    });
+    expect(reopened.statusCode).toBe(200);
+    const reopenedPayload = reopened.json();
+    expect(reopenedPayload.segments[0].approvedAt).toBeNull();
+    expect(reopenedPayload.segments[0].stale).toBe(true);
+    expect(reopenedPayload.segments[1].approvedAt).toBe(untouchedApprovedAt);
+
+    const blockedCheck = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/check`
+    });
+    expect(blockedCheck.statusCode).toBe(409);
+    expect(blockedCheck.json().message).toContain("every segment approved and current");
+
+    const reapprove = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/segments/segment:session:retry-reset-check:1/approve`
+    });
+    expect(reapprove.statusCode).toBe(200);
+
+    const finalCheck = await app.inject({
+      method: "POST",
+      url: `/api/ingestion/submissions/${submitted.sessionId}/check`
+    });
+    expect(finalCheck.statusCode).toBe(200);
+
+    await app.close();
+  });
+
   it("does not require scope input for existing approved chunk checks", async () => {
     const llmClient = createConfiguredIngestionLlmClient({
       modelName: "test-model",

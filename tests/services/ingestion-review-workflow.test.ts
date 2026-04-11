@@ -201,4 +201,213 @@ describe("ingestion review workflow", () => {
     const bobProvenance = await provenanceRepository.listByOwner("entity", "character:bob");
     expect(bobProvenance).toHaveLength(0);
   });
+
+  it("clears approval and marks only the changed approved segment stale", async () => {
+    await ingestionSessionRepository.createSession({
+      sessionId: "session:review-reset",
+      storyId: "story:draft:session:review-reset",
+      revisionId: "revision:draft:session:review-reset",
+      draftTitle: "Review Reset Draft",
+      defaultRulePackName: "reality-default",
+      inputKind: "full_draft",
+      rawText: "Alice waits.\n\nBob leaves.",
+      workflowState: "approved",
+      promptFamily: "phase5-default",
+      modelName: "test-model",
+      lastVerdictRunId: null,
+      createdAt: "2026-04-11T07:00:00Z",
+      updatedAt: "2026-04-11T07:00:00Z",
+      lastCheckedAt: null
+    });
+
+    const firstApprovedAt = "2026-04-11T07:01:00Z";
+    const secondApprovedAt = "2026-04-11T07:02:00Z";
+    await ingestionSessionRepository.saveSegments("session:review-reset", [
+      {
+        segmentId: "segment:review-reset:1",
+        sessionId: "session:review-reset",
+        sequence: 0,
+        label: "Scene One",
+        startOffset: 0,
+        endOffset: 11,
+        segmentText: "Alice waits.",
+        workflowState: "approved",
+        approvedAt: firstApprovedAt
+      },
+      {
+        segmentId: "segment:review-reset:2",
+        sessionId: "session:review-reset",
+        sequence: 1,
+        label: "Scene Two",
+        startOffset: 13,
+        endOffset: 23,
+        segmentText: "Bob leaves.",
+        workflowState: "approved",
+        approvedAt: secondApprovedAt
+      }
+    ]);
+
+    await ingestionSessionRepository.saveExtractionBatch({
+      sessionId: "session:review-reset",
+      segments: [
+        {
+          segmentId: "segment:review-reset:1",
+          workflowState: "approved",
+          candidates: [
+            {
+              candidateId: "candidate:review-reset:1",
+              sessionId: "session:review-reset",
+              segmentId: "segment:review-reset:1",
+              candidateKind: "entity",
+              canonicalKey: "entity:alice",
+              confidence: 0.95,
+              reviewNeeded: false,
+              reviewNeededReason: null,
+              sourceSpanStart: 0,
+              sourceSpanEnd: 5,
+              provenanceDetail: { source: "fixture" },
+              extractedPayload: validCharacterPayload("Alice", "session:review-reset"),
+              correctedPayload: null,
+              normalizedPayload: validCharacterPayload("Alice", "session:review-reset")
+            }
+          ]
+        },
+        {
+          segmentId: "segment:review-reset:2",
+          workflowState: "approved",
+          candidates: [
+            {
+              candidateId: "candidate:review-reset:2",
+              sessionId: "session:review-reset",
+              segmentId: "segment:review-reset:2",
+              candidateKind: "entity",
+              canonicalKey: "entity:bob",
+              confidence: 0.95,
+              reviewNeeded: false,
+              reviewNeededReason: null,
+              sourceSpanStart: 0,
+              sourceSpanEnd: 3,
+              provenanceDetail: { source: "fixture" },
+              extractedPayload: validCharacterPayload("Bob", "session:review-reset"),
+              correctedPayload: null,
+              normalizedPayload: validCharacterPayload("Bob", "session:review-reset")
+            }
+          ]
+        }
+      ]
+    });
+
+    const patched = await applyReviewPatch(
+      "session:review-reset",
+      "segment:review-reset:1",
+      {
+        candidateCorrections: [],
+        boundary: {
+          label: "Scene One Revised",
+          startOffset: 1,
+          endOffset: 12
+        }
+      },
+      {
+        ingestionSessionRepository,
+        now: () => "2026-04-11T07:03:00Z"
+      }
+    );
+
+    expect(patched.session.workflowState).toBe("partially_approved");
+    expect(patched.segments[0]?.segment.workflowState).toBe("needs_review");
+    expect(patched.segments[0]?.segment.approvedAt).toBeNull();
+    expect(patched.segments[0]?.segment.stale).toBe(true);
+    expect(patched.segments[0]?.segment.staleReason).toBe("boundary_changed");
+    expect(patched.segments[1]?.segment.workflowState).toBe("approved");
+    expect(patched.segments[1]?.segment.approvedAt).toBe(secondApprovedAt);
+    expect(patched.segments[1]?.segment.stale).toBe(false);
+  });
+
+  it("treats unchanged reapproval as a no-op without duplicate provenance", async () => {
+    await ingestionSessionRepository.createSession({
+      sessionId: "session:reapprove",
+      storyId: "story:draft:session:reapprove",
+      revisionId: "revision:draft:session:reapprove",
+      draftTitle: "Reapprove Draft",
+      defaultRulePackName: "reality-default",
+      inputKind: "chunk",
+      rawText: "Alice waits.",
+      workflowState: "extracted",
+      promptFamily: "phase5-default",
+      modelName: "test-model",
+      lastVerdictRunId: null,
+      createdAt: "2026-04-11T07:10:00Z",
+      updatedAt: "2026-04-11T07:10:00Z",
+      lastCheckedAt: null
+    });
+
+    await ingestionSessionRepository.saveSegments("session:reapprove", [
+      {
+        segmentId: "segment:reapprove:1",
+        sessionId: "session:reapprove",
+        sequence: 0,
+        label: "Chunk 1",
+        startOffset: 0,
+        endOffset: 11,
+        segmentText: "Alice waits.",
+        workflowState: "extracted",
+        approvedAt: null
+      }
+    ]);
+
+    await ingestionSessionRepository.saveExtractionBatch({
+      sessionId: "session:reapprove",
+      segments: [
+        {
+          segmentId: "segment:reapprove:1",
+          workflowState: "extracted",
+          candidates: [
+            {
+              candidateId: "candidate:reapprove:1",
+              sessionId: "session:reapprove",
+              segmentId: "segment:reapprove:1",
+              candidateKind: "entity",
+              canonicalKey: "entity:alice",
+              confidence: 0.95,
+              reviewNeeded: false,
+              reviewNeededReason: null,
+              sourceSpanStart: 0,
+              sourceSpanEnd: 5,
+              provenanceDetail: { source: "fixture" },
+              extractedPayload: validCharacterPayload("Alice", "session:reapprove"),
+              correctedPayload: null,
+              normalizedPayload: validCharacterPayload("Alice", "session:reapprove")
+            }
+          ]
+        }
+      ]
+    });
+
+    const firstApproved = await approveReviewedSegment("session:reapprove", "segment:reapprove:1", {
+      ingestionSessionRepository,
+      storyRepository,
+      ruleRepository,
+      provenanceRepository,
+      now: () => "2026-04-11T07:11:00Z"
+    });
+    const firstApprovedAt = firstApproved.segments[0]?.segment.approvedAt;
+    const firstProvenance = await provenanceRepository.listByOwner("entity", "character:alice");
+
+    const secondApproved = await approveReviewedSegment("session:reapprove", "segment:reapprove:1", {
+      ingestionSessionRepository,
+      storyRepository,
+      ruleRepository,
+      provenanceRepository,
+      now: () => "2026-04-11T07:12:00Z"
+    });
+    const secondProvenance = await provenanceRepository.listByOwner("entity", "character:alice");
+
+    expect(firstApproved.session.workflowState).toBe("approved");
+    expect(firstApprovedAt).toBe("2026-04-11T07:11:00Z");
+    expect(secondApproved.session.workflowState).toBe("approved");
+    expect(secondApproved.segments[0]?.segment.approvedAt).toBe(firstApprovedAt);
+    expect(firstProvenance).toHaveLength(1);
+    expect(secondProvenance).toHaveLength(1);
+  });
 });
