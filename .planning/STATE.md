@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
-status: ready
-stopped_at: Phase 10 context gathered
-last_updated: "2026-04-11T04:21:33Z"
-last_activity: "2026-04-11 -- Phase 10 context captured"
+status: executing
+stopped_at: Phase 10 planning complete
+last_updated: "2026-04-11T05:29:38.062Z"
+last_activity: 2026-04-11 -- Phase 10 planning complete
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 0
-  percent: 0
+  total_plans: 6
+  completed_plans: 3
+  percent: 50
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-11)
 
 **Core value:** Writers must be able to see exactly why a story is coherent or incoherent, and what explanation or prior condition would repair it.
-**Current focus:** Phase 10 planning — incremental extraction and review resilience
+**Current focus:** Phase 10 execution readiness — incremental extraction and review resilience
 
 ## Current Position
 
-Phase: 10
-Plan: Not started
-Status: Ready to plan Phase 10
-Last activity: 2026-04-11 -- Phase 10 context captured
+Phase: 10 - Incremental Extraction and Review Resilience
+Plan: 10-01 ready to start
+Status: Ready to execute
+Last activity: 2026-04-11 -- Phase 10 planning complete
 
 Progress: [----------] 0%
 
@@ -93,11 +93,13 @@ Progress: [----------] 0%
 - [Phase 09]: Update source_text_ref whenever boundary edits move segment offsets. — Keeps stored source spans consistent with review-time offset corrections.
 - [Phase 09]: Expose draft metadata as additive API response fields while preserving existing submit/read fields. — Keeps current clients working while draft-aware consumers can use sections, scopes, draftPath, and sourceTextRef immediately.
 - [Phase 09]: Persist the draft plan before segment rows in submitIngestionSession. — Ensures the first read after submit already has stable draft IDs, section metadata, and scope records.
+- [Phase 10]: Retrying an approved segment defaults to `409` unless the caller sets `allowApprovalReset=true`. — Prevents silent approval loss and makes review reopening an explicit action.
+- [Phase 10]: Honest mixed-state visibility is mandatory during incremental extraction. — Prefer split session and segment states, but allow additive summaries if they preserve retry, stale, and approval-reset visibility.
 
 ### Pending Todos
 
-- Run `/gsd-plan-phase 10` using `.planning/phases/10-incremental-extraction-and-review-resilience/10-CONTEXT.md`.
-- Execute Phase 10 plans after planning artifacts are verified.
+- Execute `/gsd-execute-phase 10` using the approved Phase 10 plan set.
+- Run `/gsd-verify-work` after Phase 10 implementation and checks complete.
 
 ### Blockers/Concerns
 
@@ -105,6 +107,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-11T04:21:33Z
-Stopped at: Phase 10 context gathered
-Resume file: .planning/phases/10-incremental-extraction-and-review-resilience/10-CONTEXT.md
+Last session: 2026-04-11T05:29:38.062Z
+Stopped at: Phase 10 planning complete
+Resume file: .planning/phases/10-incremental-extraction-and-review-resilience/10-01-PLAN.md
