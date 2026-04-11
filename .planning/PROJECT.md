@@ -18,6 +18,8 @@ Writers must be able to see exactly why a story is coherent or incoherent, and w
 - Phase 07 validated that corpus-derived soft priors can surface as explainable advisory checked-output data without changing deterministic hard verdict truth.
 - Phase 08 validated that consistency results can be inspected in a structured browser analysis view with verdict triage, deterministic evidence, event timeline, trace fields, repair suggestions, and advisory prior boundaries before advanced visualization is added.
 - Phase 09 validated the draft-scale data model for `DRAFT-01` and `DRAFT-03`: chapter-scale submissions now persist ordered document, revision, section, and segment metadata with LF-normalized source refs, first-class scope records, and additive API serialization without breaking legacy chunk flows.
+- Phase 10 validated incremental extraction and review resilience for draft scale: writers can retry selected segments, preserve prior successful snapshots, reopen approval explicitly, and keep mixed review state honest without corrupting canonical data.
+- Phase 11 validated scoped checks and revision diffs for draft scale: approved scope checks now run deterministically, verdict runs persist scope metadata additively, and inspection APIs compare same-scope runs or revisions through traceable `findingChanges`.
 
 ### Active
 
@@ -42,7 +44,7 @@ v1.1 focuses on draft scale. The next product risk is whether the verified v1.0 
 ## Current State
 
 v1.0 MVP shipped on 2026-04-10.
-Phase 09 completed on 2026-04-11.
+Phases 09, 10, and 11 completed on 2026-04-11.
 
 Delivered:
 - Canonical TypeScript/Zod story model and PostgreSQL-style persistence with pg-mem verification.
@@ -52,12 +54,16 @@ Delivered:
 - Natural-language submit/review/approve/check workflow.
 - Structured browser inspection console for verdict triage, evidence, timeline, trace, repair, and advisory review.
 - Draft-scale document, revision, section, segment, and scope modeling with additive persistence and additive API serialization for chapter-scale ingestion.
+- Incremental extraction, targeted retry, approval reset, and mixed-state review handling across many draft segments.
+- Scoped deterministic manual checks plus explicit revision/run diff selection with scope-labeled finding changes.
 
 Verification:
 - v1.0 milestone audit: passed.
 - Requirements: 19/19 v1 requirements satisfied.
 - Automated checks at milestone close: `npm run test`, `npm run build`, and `npm run test:browser` passed.
 - Phase 09 close: `npm run typecheck` and `npm run test:ingestion` passed.
+- Phase 10 close: `npm run typecheck` and `npm run test:ingestion` passed.
+- Phase 11 close: `npm run typecheck`, `npm run test:reasoning`, `npm run test:ingestion`, and targeted inspection payload/API regressions passed.
 
 ## Current Milestone: v1.1 Draft Scale
 
@@ -107,4 +113,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-11 after Phase 09 completion*
+*Last updated: 2026-04-11 after Phase 11 completion*
