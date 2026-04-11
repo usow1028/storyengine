@@ -1,19 +1,18 @@
 # Milestones
 
-## v1.1 Draft Scale (Active)
+## v1.1 Draft Scale (Shipped: 2026-04-11)
 
-**Goal:** Let writers analyze chapter-scale drafts incrementally while preserving review control, deterministic verdict reruns, and inspectable deltas.
+**Phases completed:** 4 phases, 12 plans, 34 tasks
 
-**Planned phases:** 4 phases, 12 plans
+**Archives:** [Roadmap](milestones/v1.1-ROADMAP.md) · [Requirements](milestones/v1.1-REQUIREMENTS.md)
 
-**Key targets:**
+**Key accomplishments:**
 
-- Draft/chapter container and revision metadata
-- Deterministic segment planning with stable labels, order, offsets, and source references
-- Segment-level extraction, retry, review, correction, and approval
-- Explicit approved-scope consistency checks
-- Revision/run diffing with scope-aware finding labels
-- Large-run inspection grouping, filtering, source spans, and operational progress state
+- Chapter-scale draft documents, revisions, sections, segments, and source references now persist additively without breaking the legacy ingestion flow.
+- Incremental extraction, retry, correction, approval reset, and mixed-state visibility now work safely per segment without corrupting canonical state.
+- Scoped consistency checks and revision or run diffs now preserve deterministic hard verdict truth while surfacing finding-level scope labels.
+- Large-run inspection now supports grouped and filterable verdict browsing while keeping verdict-kind triage as the fixed outer frame.
+- Operational warning counts, provenance-backed row or detail context, and browser verification now keep partial draft work visibly honest.
 
 ---
 

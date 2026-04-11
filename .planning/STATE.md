@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
-status: milestone_complete
-stopped_at: Phase 12 complete, milestone ready for archival
-last_updated: "2026-04-11T11:16:58.417Z"
-last_activity: 2026-04-11
+status: completed
+stopped_at: v1.1 archived, ready for /gsd-new-milestone
+last_updated: "2026-04-11T12:26:20Z"
+last_activity: 2026-04-11 -- v1.1 archived
 progress:
   total_phases: 4
   completed_phases: 4
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-11)
 
 **Core value:** Writers must be able to see exactly why a story is coherent or incoherent, and what explanation or prior condition would repair it.
-**Current focus:** Milestone v1.1 complete
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Phase: 12 (large-run-inspection-and-operational-guardrails) - COMPLETE
-Plan: Complete (3 of 3)
-Status: Milestone complete
-Last activity: 2026-04-11
+Phase: None (v1.1 archived)
+Plan: Not started
+Status: Planning next milestone
+Last activity: 2026-04-11 -- v1.1 archived
 
 Progress: [██████████] 100%
 
@@ -101,7 +101,7 @@ Progress: [██████████] 100%
 
 ### Pending Todos
 
-- Run `/gsd-complete-milestone v1.1` to archive v1.1 and prepare the next milestone.
+- Run `/gsd-new-milestone` to define the next milestone, requirements, and roadmap.
 
 ### Blockers/Concerns
 
@@ -109,6 +109,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-11T11:16:18.526Z
-Stopped at: Phase 12 complete, milestone ready for archival
+Last session: 2026-04-11T12:26:20Z
+Stopped at: v1.1 archived, ready for /gsd-new-milestone
 Resume file: None

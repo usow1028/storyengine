@@ -25,7 +25,7 @@ Writers must be able to see exactly why a story is coherent or incoherent, and w
 
 ### Active
 
-- [ ] Archive v1.1 and define the next milestone after retrospective review.
+- [ ] Define the next milestone after v1.1 retrospective review and fresh requirements capture.
 
 ### Out of Scope
 
@@ -40,11 +40,12 @@ The project starts from the belief that story creation can be approached mathema
 
 Current writing workflows usually spread ideas, setting notes, scenes, and plot structure across word processors or loose documents. That makes structural validation difficult. StoryGraph now has a v1.0 consistency core that can persist canonical story graphs, run deterministic verdict checks, propose and rank repairs, surface soft-prior advisory signals, accept natural-language reviewed input, and inspect verdict runs through a browser surface.
 
-v1.1 focuses on draft scale. The next product risk is whether the verified v1.0 analysis loop still works when a writer submits chapter-scale text, reviews extracted material incrementally, reruns checks over selected scope, and compares revisions without losing provenance.
+v1.1 proved the draft-scale expansion. The next product risk is choosing which post-draft-scale capability should matter next without weakening the deterministic and traceable consistency core that now spans both scene-scale and chapter-scale workflows.
 
 ## Current State
 
 v1.0 MVP shipped on 2026-04-10.
+v1.1 Draft Scale shipped and archived on 2026-04-11.
 Phases 09, 10, 11, and 12 completed on 2026-04-11.
 
 Delivered:
@@ -68,13 +69,19 @@ Verification:
 - Phase 11 close: `npm run typecheck`, `npm run test:reasoning`, `npm run test:ingestion`, and targeted inspection payload/API regressions passed.
 - Phase 12 close: `npm run typecheck`, `npm run test:reasoning`, `npm run test:ingestion`, targeted inspection payload/API/UI regressions, and `npm run test:browser -- tests/browser/inspection-surface.spec.ts` passed.
 
-## Current Milestone: v1.1 Draft Scale
+## Next Milestone Goals
+
+- Define fresh requirements and roadmap scope via `/gsd-new-milestone`.
+- Decide which post-v1.1 direction matters most before planning: richer inspection/visualization, collaboration, format/editor integration, or another draft-scale hardening pass.
+- Preserve deterministic verdict truth, evidence traceability, and advisory-prior boundaries as non-negotiables for the next milestone.
+
+<details>
+<summary>Archived milestone: v1.1 Draft Scale</summary>
 
 Goal: Let writers analyze chapter-scale drafts incrementally while preserving review control, deterministic verdict reruns, and inspectable deltas.
 
 Status:
-- All v1.1 phase goals are complete at the phase level.
-- The next workflow step is `/gsd-complete-milestone v1.1` to archive the milestone and prepare the next one.
+- All v1.1 phase goals completed and the milestone is now archived.
 
 Delivered milestone features:
 - Draft/chapter ingestion model over ordered documents, chapters, and segments.
@@ -83,6 +90,8 @@ Delivered milestone features:
 - Revision diff support for verdicts, repairs, and canonical graph changes.
 - Larger-run inspection entrypoints that keep triage usable.
 - Provenance and operational guardrails for partial approvals, resumable work, and failed extraction batches.
+
+</details>
 
 ## Constraints
 
@@ -120,4 +129,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-11 after Phase 12 completion*
+*Last updated: 2026-04-11 after v1.1 milestone archive*
