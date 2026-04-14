@@ -1,0 +1,27 @@
+{
+  "name": "logic3d-narrative-app",
+  "version": "1.0.0",
+  "description": "ChatGPT MCP app for a block-based narrative 3D graph inspired by logic3d.",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "smoke": "node scripts/smoke.mjs",
+    "test": "node scripts/smoke.mjs"
+  },
+  "keywords": [
+    "logic3d",
+    "mcp",
+    "chatgpt-app",
+    "story",
+    "narrative",
+    "3d"
+  ],
+  "license": "ISC",
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.5.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.3.6"
+  }
+}

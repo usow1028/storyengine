@@ -1,0 +1,928 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Logic3D Narrative Widget</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: radial-gradient(circle at top, #edf3ff 0%, #f6f8fc 42%, #eef2f8 100%);
+        --panel: rgba(255, 255, 255, 0.82);
+        --panel-strong: rgba(255, 255, 255, 0.94);
+        --ink: #122033;
+        --muted: #5c6b84;
+        --line: rgba(18, 32, 51, 0.12);
+        --shadow: 0 24px 70px rgba(18, 32, 51, 0.12);
+        --accent: #1677ff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "IBM Plex Sans KR", "Pretendard", "Noto Sans KR", system-ui,
+          sans-serif;
+      }
+
+      .shell {
+        position: relative;
+        min-height: 100vh;
+        padding: 10px;
+      }
+
+      .toolbar {
+        position: absolute;
+        top: 18px;
+        right: 18px;
+        z-index: 30;
+        display: flex;
+        gap: 8px;
+      }
+
+      button {
+        border: 0;
+        border-radius: 999px;
+        padding: 10px 14px;
+        font: inherit;
+        font-size: 14px;
+        cursor: pointer;
+        transition: transform 120ms ease, opacity 120ms ease;
+        box-shadow: var(--shadow);
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+      }
+
+      .ghost {
+        background: var(--panel-strong);
+        color: var(--ink);
+        border: 1px solid var(--line);
+      }
+
+      .primary {
+        background: linear-gradient(135deg, #1677ff 0%, #0f52d9 100%);
+        color: white;
+      }
+
+      .stage {
+        position: relative;
+        min-height: calc(100vh - 20px);
+        overflow: hidden;
+        border-radius: 28px;
+        border: 1px solid var(--line);
+        background:
+          radial-gradient(circle at 20% 10%, rgba(255, 255, 255, 0.82), transparent 34%),
+          linear-gradient(180deg, rgba(246, 249, 255, 0.98), rgba(231, 238, 248, 0.96));
+        box-shadow: var(--shadow);
+      }
+
+      #viewport {
+        width: 100%;
+        height: calc(100vh - 20px);
+        display: block;
+      }
+
+      .overlay-card {
+        position: absolute;
+        z-index: 25;
+        max-width: min(380px, calc(100vw - 32px));
+        padding: 14px 16px;
+        border-radius: 20px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        backdrop-filter: blur(20px);
+        box-shadow: var(--shadow);
+      }
+
+      .empty-state {
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: min(760px, calc(100vw - 32px));
+        display: grid;
+        gap: 12px;
+        text-align: left;
+      }
+
+      .empty-state h1 {
+        margin: 0;
+        font-size: clamp(26px, 4vw, 38px);
+        line-height: 1.05;
+      }
+
+      .empty-state p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.65;
+      }
+
+      .preset-grid {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        margin-top: 6px;
+      }
+
+      .preset {
+        display: grid;
+        gap: 6px;
+        text-align: left;
+        padding: 14px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: var(--panel-strong);
+      }
+
+      .preset strong {
+        font-size: 15px;
+      }
+
+      .preset span {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .hover-card {
+        left: 16px;
+        bottom: 16px;
+        min-width: 260px;
+      }
+
+      .hover-card h2 {
+        margin: 0 0 6px;
+        font-size: 17px;
+      }
+
+      .hover-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+
+      .hover-chip {
+        padding: 5px 10px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.76);
+        border: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .hover-card p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      .scene-badge {
+        position: absolute;
+        left: 16px;
+        top: 16px;
+        z-index: 24;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .scene-badge span {
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      @media (max-width: 720px) {
+        .shell {
+          padding: 0;
+        }
+
+        .stage {
+          min-height: 100vh;
+          border-radius: 0;
+        }
+
+        #viewport {
+          height: 100vh;
+        }
+
+        .toolbar {
+          top: 10px;
+          right: 10px;
+          gap: 6px;
+        }
+
+        button {
+          padding: 9px 12px;
+          font-size: 13px;
+        }
+
+        .scene-badge {
+          left: 10px;
+          top: 10px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <div class="toolbar">
+        <button id="fitView" class="ghost" type="button">맞춤 보기</button>
+        <button id="resetView" class="ghost" type="button">시점 초기화</button>
+      </div>
+
+      <section class="stage">
+        <canvas id="viewport"></canvas>
+
+        <div id="sceneBadge" class="scene-badge" hidden>
+          <span id="sceneStats">사건 0개</span>
+          <span id="sceneAxes">x 시간 · y 인물 · z 노출</span>
+        </div>
+
+        <section id="emptyState" class="overlay-card empty-state">
+          <h1>Logic3D Narrative</h1>
+          <p>
+            logic3d의 사건, 주체, 인과관계 개념을 가져와 블록 단위 3D 그래프로
+            그립니다. 장면이 없으면 아래 예시를 바로 실행하거나, ChatGPT가
+            <code>render_narrative_3d_graph</code> 를 호출하면 즉시 렌더링됩니다.
+          </p>
+          <div id="presetGrid" class="preset-grid"></div>
+        </section>
+
+        <aside id="hoverCard" class="overlay-card hover-card" hidden>
+          <h2 id="hoverTitle">사건</h2>
+          <div id="hoverMeta" class="hover-meta"></div>
+          <p id="hoverSummary"></p>
+        </aside>
+      </section>
+    </main>
+
+    <script>
+      const EMBEDDED_PREVIEW_SCENE = __PREVIEW_SCENE_JSON__;
+      const SAMPLE_PRESETS = Object.freeze([
+        {
+          id: "detective",
+          label: "탐정 폭로",
+          description: "추적, 압박, 폭로가 층으로 쌓이는 예시",
+          args: {
+            title: "탐정 폭로 구조",
+            synopsis: "블록식 서사 구조를 빠르게 보는 샘플입니다.",
+            actors: [{ name: "탐정" }, { name: "용의자" }, { name: "기록관" }],
+            events: [
+              { eventId: "clue", title: "탐정이 단서를 확보한다", actorNames: ["탐정"], sequence: 1, revealRank: 1, effects: ["clue acquired"] },
+              { eventId: "stall", title: "용의자가 시간을 끈다", actorNames: ["용의자"], sequence: 2, revealRank: 2, effects: ["delay"] },
+              { eventId: "archive", title: "기록관이 장부를 꺼낸다", actorNames: ["기록관"], sequence: 3, revealRank: 3, effects: ["archive opened"] },
+              { eventId: "reveal", title: "장부의 진짜 주인이 폭로된다", actorNames: ["탐정", "기록관"], sequence: 4, revealRank: 5, tags: ["reveal"] }
+            ],
+            causalLinks: [
+              { causeEventId: "clue", effectEventId: "reveal", relation: "causes" },
+              { causeEventId: "archive", effectEventId: "reveal", relation: "reveals" }
+            ]
+          }
+        },
+        {
+          id: "triangle",
+          label: "감정 삼각형",
+          description: "동일 인물의 연속 행동을 색 트레일로 확인",
+          args: {
+            title: "감정 삼각형",
+            actors: [{ name: "유진" }, { name: "도현" }, { name: "하린" }],
+            events: [
+              { eventId: "promise", title: "유진이 약속을 제안한다", actorNames: ["유진"], sequence: 1, revealRank: 1 },
+              { eventId: "hesitate", title: "도현이 망설인다", actorNames: ["도현"], sequence: 2, revealRank: 2 },
+              { eventId: "observe", title: "하린이 균열을 감지한다", actorNames: ["하린"], sequence: 3, revealRank: 3 },
+              { eventId: "withdraw", title: "유진이 먼저 물러난다", actorNames: ["유진"], sequence: 4, revealRank: 4 }
+            ],
+            causalLinks: [
+              { causeEventId: "hesitate", effectEventId: "withdraw", relation: "motivates" }
+            ]
+          }
+        },
+        {
+          id: "quest",
+          label: "복선 회수",
+          description: "복선, 차단, 회수가 인과 링크로 이어짐",
+          args: {
+            title: "복선 회수",
+            actors: [{ name: "주인공" }, { name: "조력자" }, { name: "적대자" }],
+            events: [
+              { eventId: "seed", title: "조력자가 암호를 남긴다", actorNames: ["조력자"], sequence: 1, revealRank: 1, tags: ["setup"] },
+              { eventId: "block", title: "적대자가 통로를 봉쇄한다", actorNames: ["적대자"], sequence: 2, revealRank: 2, tags: ["obstacle"] },
+              { eventId: "decode", title: "주인공이 암호를 해독한다", actorNames: ["주인공"], sequence: 3, revealRank: 4, effects: ["route solved"] },
+              { eventId: "return", title: "봉인된 방이 열린다", actorNames: ["주인공", "조력자"], sequence: 4, revealRank: 5, tags: ["payoff"] }
+            ],
+            causalLinks: [
+              { causeEventId: "seed", effectEventId: "decode", relation: "enables" },
+              { causeEventId: "block", effectEventId: "decode", relation: "blocks" },
+              { causeEventId: "decode", effectEventId: "return", relation: "restores" }
+            ]
+          }
+        }
+      ]);
+
+      const canvas = document.getElementById("viewport");
+      const fitViewButton = document.getElementById("fitView");
+      const resetViewButton = document.getElementById("resetView");
+      const emptyStateEl = document.getElementById("emptyState");
+      const presetGridEl = document.getElementById("presetGrid");
+      const hoverCardEl = document.getElementById("hoverCard");
+      const hoverTitleEl = document.getElementById("hoverTitle");
+      const hoverMetaEl = document.getElementById("hoverMeta");
+      const hoverSummaryEl = document.getElementById("hoverSummary");
+      const sceneBadgeEl = document.getElementById("sceneBadge");
+      const sceneStatsEl = document.getElementById("sceneStats");
+      const sceneAxesEl = document.getElementById("sceneAxes");
+      const ctx = canvas.getContext("2d");
+
+      const state = {
+        currentScene: null,
+        hoveredBlockId: null,
+        dragActive: false,
+        lastPointerX: 0,
+        lastPointerY: 0,
+        pickables: [],
+        view: {
+          yaw: -0.88,
+          pitch: 0.6,
+          zoom: 86,
+          distance: 24,
+        },
+      };
+
+      function getInitialScene() {
+        if (EMBEDDED_PREVIEW_SCENE) return EMBEDDED_PREVIEW_SCENE;
+        if (window.openai?.widgetState?.scene) return window.openai.widgetState.scene;
+        if (window.openai?.toolOutput?.scene) return window.openai.toolOutput.scene;
+        return null;
+      }
+
+      function extractScene(payload) {
+        if (!payload || typeof payload !== "object") return null;
+        if (payload.sceneId && Array.isArray(payload.blocks)) return payload;
+        if (payload.scene?.sceneId) return payload.scene;
+        if (payload.structuredContent?.scene?.sceneId) return payload.structuredContent.scene;
+        if (payload.result?.structuredContent?.scene?.sceneId) {
+          return payload.result.structuredContent.scene;
+        }
+        if (payload.params?.structuredContent?.scene?.sceneId) {
+          return payload.params.structuredContent.scene;
+        }
+        return null;
+      }
+
+      function notifyHeight() {
+        try {
+          window.openai?.notifyIntrinsicHeight?.();
+        } catch (_) {}
+      }
+
+      function persistScene(scene) {
+        try {
+          window.openai?.setWidgetState?.({ scene });
+        } catch (_) {}
+      }
+
+      function hexToRgb(hex) {
+        const clean = String(hex).replace("#", "");
+        const bigint = Number.parseInt(clean, 16);
+        return {
+          r: (bigint >> 16) & 255,
+          g: (bigint >> 8) & 255,
+          b: bigint & 255,
+        };
+      }
+
+      function shadeColor(hex, delta) {
+        const { r, g, b } = hexToRgb(hex);
+        const clamp = (value) => Math.max(0, Math.min(255, value));
+        return `rgb(${clamp(r + delta)}, ${clamp(g + delta)}, ${clamp(b + delta)})`;
+      }
+
+      function resizeCanvas() {
+        const dpr = window.devicePixelRatio || 1;
+        const width = canvas.clientWidth || window.innerWidth;
+        const height = canvas.clientHeight || window.innerHeight;
+        canvas.width = Math.max(1, Math.floor(width * dpr));
+        canvas.height = Math.max(1, Math.floor(height * dpr));
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        render();
+      }
+
+      function resetView() {
+        const scene = state.currentScene;
+        state.view = {
+          yaw: scene?.camera?.yaw ?? -0.88,
+          pitch: scene?.camera?.pitch ?? 0.6,
+          zoom: scene?.camera?.zoom ?? 86,
+          distance: scene?.camera?.distance ?? 24,
+        };
+        render();
+      }
+
+      function measureProjectedBounds(scene, view) {
+        const { minX, minY, minZ, maxX, maxY, maxZ } = scene.bounds;
+        const corners = [
+          { x: minX, y: minY, z: minZ },
+          { x: maxX, y: minY, z: minZ },
+          { x: maxX, y: maxY, z: minZ },
+          { x: minX, y: maxY, z: minZ },
+          { x: minX, y: minY, z: maxZ },
+          { x: maxX, y: minY, z: maxZ },
+          { x: maxX, y: maxY, z: maxZ },
+          { x: minX, y: maxY, z: maxZ },
+        ];
+        const projected = corners.map((corner) => projectPoint(scene, corner, view));
+        const xs = projected.map((point) => point.x);
+        const ys = projected.map((point) => point.y);
+        return {
+          width: Math.max(...xs) - Math.min(...xs),
+          height: Math.max(...ys) - Math.min(...ys),
+        };
+      }
+
+      function fitView() {
+        const scene = state.currentScene;
+        if (!scene) return;
+
+        const width = canvas.clientWidth || window.innerWidth;
+        const height = canvas.clientHeight || window.innerHeight;
+        const rangeX = scene.bounds.maxX - scene.bounds.minX;
+        const rangeY = scene.bounds.maxY - scene.bounds.minY;
+        const rangeZ = scene.bounds.maxZ - scene.bounds.minZ;
+        const sceneSpan = Math.max(rangeX, rangeY, rangeZ, 8);
+        const baseView = {
+          yaw: scene.camera?.yaw ?? -0.88,
+          pitch: scene.camera?.pitch ?? 0.6,
+          distance: Math.max(7.5, sceneSpan * 0.46),
+          zoom: 120,
+        };
+        const measured = measureProjectedBounds(scene, baseView);
+        const targetWidth = width * 0.82;
+        const targetHeight = height * 0.72;
+        const widthScale = targetWidth / Math.max(measured.width, 1);
+        const heightScale = targetHeight / Math.max(measured.height, 1);
+        state.view = {
+          ...baseView,
+          zoom: Math.max(120, Math.min(460, 120 * Math.min(widthScale, heightScale))),
+        };
+        render();
+      }
+
+      function sceneCenter(scene) {
+        return scene?.bounds?.center ?? { x: 0, y: 0, z: 0 };
+      }
+
+      function transformPoint(scene, point, view = state.view) {
+        const center = sceneCenter(scene);
+        const x = point.x - center.x;
+        const y = point.y - center.y;
+        const z = point.z - center.z;
+        const cosYaw = Math.cos(view.yaw);
+        const sinYaw = Math.sin(view.yaw);
+        const x1 = x * cosYaw - y * sinYaw;
+        const y1 = x * sinYaw + y * cosYaw;
+        const cosPitch = Math.cos(view.pitch);
+        const sinPitch = Math.sin(view.pitch);
+        const y2 = y1 * cosPitch - z * sinPitch;
+        const z2 = y1 * sinPitch + z * cosPitch;
+        return { x: x1, y: y2, z: z2 };
+      }
+
+      function projectPoint(scene, point, view = state.view) {
+        const transformed = transformPoint(scene, point, view);
+        const width = canvas.clientWidth || window.innerWidth;
+        const height = canvas.clientHeight || window.innerHeight;
+        const depth = view.distance + transformed.y;
+        const scale = view.zoom / Math.max(6, depth);
+        return {
+          x: width * 0.5 + transformed.x * scale,
+          y: height * 0.58 - transformed.z * scale,
+          depth: transformed.y,
+          scale,
+        };
+      }
+
+      function polygonContains(point, polygon) {
+        let inside = false;
+        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+          const xi = polygon[i].x;
+          const yi = polygon[i].y;
+          const xj = polygon[j].x;
+          const yj = polygon[j].y;
+          const intersect =
+            yi > point.y !== yj > point.y &&
+            point.x < ((xj - xi) * (point.y - yi)) / (yj - yi + 0.00001) + xi;
+          if (intersect) inside = !inside;
+        }
+        return inside;
+      }
+
+      function faceVisibility(cameraPoints, face) {
+        const a = cameraPoints[face[0]];
+        const b = cameraPoints[face[1]];
+        const c = cameraPoints[face[2]];
+        const ab = { x: b.x - a.x, y: b.y - a.y, z: b.z - a.z };
+        const ac = { x: c.x - a.x, y: c.y - a.y, z: c.z - a.z };
+        const normal = {
+          x: ab.y * ac.z - ab.z * ac.y,
+          y: ab.z * ac.x - ab.x * ac.z,
+          z: ab.x * ac.y - ab.y * ac.x,
+        };
+        return normal.y < 0;
+      }
+
+      function renderBlock(scene, block, shapes) {
+        const minX = block.x - block.width / 2;
+        const maxX = block.x + block.width / 2;
+        const minY = block.y - block.depth / 2;
+        const maxY = block.y + block.depth / 2;
+        const minZ = block.z;
+        const maxZ = block.z + block.height;
+        const corners = [
+          { x: minX, y: minY, z: minZ },
+          { x: maxX, y: minY, z: minZ },
+          { x: maxX, y: maxY, z: minZ },
+          { x: minX, y: maxY, z: minZ },
+          { x: minX, y: minY, z: maxZ },
+          { x: maxX, y: minY, z: maxZ },
+          { x: maxX, y: maxY, z: maxZ },
+          { x: minX, y: maxY, z: maxZ },
+        ];
+        const cameraPoints = corners.map((point) => transformPoint(scene, point));
+        const projected = corners.map((point) => projectPoint(scene, point));
+        const faces = [
+          { key: "top", indices: [4, 5, 6, 7], fill: shadeColor(block.color, 42) },
+          { key: "left", indices: [0, 3, 7, 4], fill: shadeColor(block.color, -8) },
+          { key: "right", indices: [1, 2, 6, 5], fill: shadeColor(block.color, -24) },
+          { key: "front", indices: [0, 1, 5, 4], fill: shadeColor(block.color, 6) },
+        ];
+
+        for (const face of faces) {
+          if (!faceVisibility(cameraPoints, face.indices)) continue;
+          const polygon = face.indices.map((index) => projected[index]);
+          const depth =
+            face.indices.reduce((sum, index) => sum + projected[index].depth, 0) /
+            face.indices.length;
+          shapes.push({
+            type: "face",
+            block,
+            polygon,
+            fill: face.fill,
+            stroke: "rgba(17, 24, 39, 0.14)",
+            depth,
+          });
+        }
+
+        const topPolygon = [4, 5, 6, 7].map((index) => projected[index]);
+        state.pickables.push({
+          blockId: block.blockId,
+          depth: projected[6].depth,
+          polygons: [topPolygon],
+        });
+
+        const topCenter = projectPoint(scene, {
+          x: block.x,
+          y: block.y,
+          z: block.z + block.height + 0.15,
+        });
+        shapes.push({
+          type: "label",
+          block,
+          point: topCenter,
+          depth: topCenter.depth,
+          text: block.title,
+        });
+      }
+
+      function drawPolygon(polygon, fill, stroke) {
+        ctx.beginPath();
+        ctx.moveTo(polygon[0].x, polygon[0].y);
+        for (let index = 1; index < polygon.length; index += 1) {
+          ctx.lineTo(polygon[index].x, polygon[index].y);
+        }
+        ctx.closePath();
+        ctx.fillStyle = fill;
+        ctx.fill();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+
+      function drawLine(points, color, width, dash = []) {
+        ctx.beginPath();
+        ctx.setLineDash(dash);
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let index = 1; index < points.length; index += 1) {
+          ctx.lineTo(points[index].x, points[index].y);
+        }
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      function drawLink(scene, sourceBlock, targetBlock, color, dashed) {
+        const source = projectPoint(scene, {
+          x: sourceBlock.x,
+          y: sourceBlock.y,
+          z: sourceBlock.z + sourceBlock.height + 0.1,
+        });
+        const target = projectPoint(scene, {
+          x: targetBlock.x,
+          y: targetBlock.y,
+          z: targetBlock.z + targetBlock.height + 0.1,
+        });
+        const control = projectPoint(scene, {
+          x: (sourceBlock.x + targetBlock.x) / 2,
+          y: (sourceBlock.y + targetBlock.y) / 2,
+          z: Math.max(sourceBlock.z + sourceBlock.height, targetBlock.z + targetBlock.height) + 1.1,
+        });
+
+        ctx.beginPath();
+        ctx.setLineDash(dashed ? [10, 7] : []);
+        ctx.moveTo(source.x, source.y);
+        ctx.quadraticCurveTo(control.x, control.y, target.x, target.y);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = dashed ? 2.2 : 1.8;
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      function renderAxes(scene) {
+        if (scene.guides?.showAxes === false) return;
+
+        const origin = projectPoint(scene, { x: scene.bounds.minX + 1.2, y: scene.bounds.minY + 0.6, z: 0 });
+        const xEnd = projectPoint(scene, { x: scene.bounds.maxX, y: scene.bounds.minY + 0.6, z: 0 });
+        const yEnd = projectPoint(scene, { x: scene.bounds.minX + 1.2, y: scene.bounds.maxY, z: 0 });
+        const zEnd = projectPoint(scene, { x: scene.bounds.minX + 1.2, y: scene.bounds.minY + 0.6, z: scene.bounds.maxZ });
+
+        drawLine([origin, xEnd], "#dd5544", 1.6);
+        drawLine([origin, yEnd], "#0ea45f", 1.6);
+        drawLine([origin, zEnd], "#2452ff", 1.6);
+
+        ctx.fillStyle = "rgba(24, 33, 47, 0.62)";
+        ctx.font = "600 14px IBM Plex Sans KR, sans-serif";
+        ctx.fillText(`x: ${scene.axes.x}`, xEnd.x + 8, xEnd.y + 2);
+        ctx.fillText(`y: ${scene.axes.y}`, yEnd.x + 8, yEnd.y + 2);
+        ctx.fillText(`z: ${scene.axes.z}`, zEnd.x + 8, zEnd.y + 2);
+      }
+
+      function renderTrails(scene) {
+        if (scene.guides?.showActorTrails === false) return;
+        const blockById = new Map(scene.blocks.map((block) => [block.blockId, block]));
+        for (const trail of scene.trails ?? []) {
+          const source = blockById.get(trail.fromBlockId);
+          const target = blockById.get(trail.toBlockId);
+          if (!source || !target) continue;
+          drawLink(scene, source, target, trail.color, false);
+        }
+      }
+
+      function renderCausalLinks(scene) {
+        if (scene.guides?.showCausalLinks === false) return;
+        const blockById = new Map(scene.blocks.map((block) => [block.blockId, block]));
+        for (const link of scene.links ?? []) {
+          const source = blockById.get(link.fromBlockId);
+          const target = blockById.get(link.toBlockId);
+          if (!source || !target) continue;
+          drawLink(scene, source, target, link.color, true);
+        }
+      }
+
+      function renderScene() {
+        const scene = state.currentScene;
+        if (!scene) {
+          ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+          sceneBadgeEl.hidden = true;
+          hoverCardEl.hidden = true;
+          emptyStateEl.hidden = false;
+          return;
+        }
+
+        emptyStateEl.hidden = true;
+        sceneBadgeEl.hidden = false;
+        sceneStatsEl.textContent = `사건 ${scene.blocks.length}개 · 인물 ${scene.actors.length}명`;
+        sceneAxesEl.textContent = `x ${scene.axes.x} · y ${scene.axes.y} · z ${scene.axes.z}`;
+
+        const width = canvas.clientWidth || window.innerWidth;
+        const height = canvas.clientHeight || window.innerHeight;
+        ctx.clearRect(0, 0, width, height);
+
+        const gradient = ctx.createLinearGradient(0, 0, 0, height);
+        gradient.addColorStop(0, "rgba(248, 251, 255, 0.94)");
+        gradient.addColorStop(1, "rgba(233, 239, 248, 0.98)");
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, width, height);
+
+        renderAxes(scene);
+        renderTrails(scene);
+        renderCausalLinks(scene);
+
+        const shapes = [];
+        state.pickables = [];
+        for (const block of scene.blocks) {
+          renderBlock(scene, block, shapes);
+        }
+
+        shapes
+          .filter((shape) => shape.type === "face")
+          .sort((left, right) => right.depth - left.depth)
+          .forEach((shape) => drawPolygon(shape.polygon, shape.fill, shape.stroke));
+
+        shapes
+          .filter((shape) => shape.type === "label")
+          .sort((left, right) => right.depth - left.depth)
+          .forEach((shape) => {
+            if (shape.point.x < -120 || shape.point.x > width + 120) return;
+            if (shape.point.y < -50 || shape.point.y > height + 50) return;
+            ctx.font = "600 13px IBM Plex Sans KR, sans-serif";
+            ctx.fillStyle = "rgba(18, 32, 51, 0.86)";
+            ctx.fillText(shape.text, shape.point.x + 6, shape.point.y - 6);
+          });
+
+        const hovered = scene.blocks.find((block) => block.blockId === state.hoveredBlockId);
+        if (hovered) {
+          hoverTitleEl.textContent = hovered.title;
+          hoverSummaryEl.textContent =
+            hovered.summary ||
+            `${hovered.primaryActor} · ${hovered.eventType} · seq ${hovered.sequence}`;
+          hoverMetaEl.innerHTML = "";
+          [
+            hovered.primaryActor,
+            `seq ${hovered.sequence}`,
+            `z ${hovered.revealRank}`,
+            hovered.eventType,
+          ].forEach((value) => {
+            const chip = document.createElement("span");
+            chip.className = "hover-chip";
+            chip.textContent = value;
+            hoverMetaEl.appendChild(chip);
+          });
+          hoverCardEl.hidden = false;
+        } else {
+          hoverCardEl.hidden = true;
+        }
+
+        notifyHeight();
+      }
+
+      function render() {
+        window.requestAnimationFrame(renderScene);
+      }
+
+      function setScene(scene) {
+        state.currentScene = scene;
+        persistScene(scene);
+        fitView();
+        render();
+      }
+
+      function updateHoverFromPointer(clientX, clientY) {
+        if (!state.currentScene) return;
+        const rect = canvas.getBoundingClientRect();
+        const point = { x: clientX - rect.left, y: clientY - rect.top };
+        const candidates = [...state.pickables].sort((left, right) => left.depth - right.depth);
+        let hovered = null;
+        for (let index = 0; index < candidates.length; index += 1) {
+          const candidate = candidates[index];
+          if (candidate.polygons.some((polygon) => polygonContains(point, polygon))) {
+            hovered = candidate.blockId;
+          }
+        }
+        state.hoveredBlockId = hovered;
+        render();
+      }
+
+      function renderPresetButtons() {
+        presetGridEl.innerHTML = "";
+        for (const preset of SAMPLE_PRESETS) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "preset";
+          button.innerHTML = `<strong>${preset.label}</strong><span>${preset.description}</span>`;
+          button.addEventListener("click", async () => {
+            if (typeof window.openai?.callTool === "function") {
+              const result = await window.openai.callTool("render_narrative_3d_graph", preset.args);
+              const scene = extractScene(result);
+              if (scene) {
+                setScene(scene);
+              }
+              return;
+            }
+            setScene({
+              sceneId: `local-${Date.now()}`,
+              title: preset.args.title,
+              caption: preset.args.synopsis ?? "",
+              axes: {
+                x: "시간 순서",
+                y: "행동 주체",
+                z: "서사 노출/인과 우선도",
+              },
+              camera: { yaw: -0.88, pitch: 0.6, zoom: 86, distance: 24 },
+              bounds: {
+                minX: -1,
+                minY: -1,
+                minZ: -0.5,
+                maxX: 8,
+                maxY: 6,
+                maxZ: 6,
+                center: { x: 3.5, y: 2.5, z: 2.5 },
+              },
+              actors: [],
+              blocks: [],
+              links: [],
+              trails: [],
+              guides: { showAxes: true, showActorTrails: true, showCausalLinks: true },
+              generatedAt: new Date().toISOString(),
+            });
+          });
+          presetGridEl.appendChild(button);
+        }
+      }
+
+      fitViewButton.addEventListener("click", fitView);
+      resetViewButton.addEventListener("click", resetView);
+
+      canvas.addEventListener("pointerdown", (event) => {
+        state.dragActive = true;
+        state.lastPointerX = event.clientX;
+        state.lastPointerY = event.clientY;
+        canvas.setPointerCapture?.(event.pointerId);
+      });
+
+      canvas.addEventListener("pointermove", (event) => {
+        if (state.dragActive) {
+          const deltaX = event.clientX - state.lastPointerX;
+          const deltaY = event.clientY - state.lastPointerY;
+          state.lastPointerX = event.clientX;
+          state.lastPointerY = event.clientY;
+          state.view.yaw += deltaX * 0.006;
+          state.view.pitch = Math.max(0.18, Math.min(1.18, state.view.pitch - deltaY * 0.004));
+          state.hoveredBlockId = null;
+          render();
+          return;
+        }
+
+        updateHoverFromPointer(event.clientX, event.clientY);
+      });
+
+      canvas.addEventListener("pointerup", (event) => {
+        state.dragActive = false;
+        canvas.releasePointerCapture?.(event.pointerId);
+      });
+
+      canvas.addEventListener("pointerleave", () => {
+        state.dragActive = false;
+      });
+
+      canvas.addEventListener(
+        "wheel",
+        (event) => {
+          event.preventDefault();
+          state.view.zoom = Math.max(28, Math.min(160, state.view.zoom - event.deltaY * 0.04));
+          render();
+        },
+        { passive: false }
+      );
+
+      window.addEventListener("resize", resizeCanvas);
+      window.addEventListener(
+        "message",
+        (event) => {
+          if (event.source !== window.parent) return;
+          const message = event.data;
+          if (!message || message.jsonrpc !== "2.0") return;
+          if (message.method !== "ui/notifications/tool-result") return;
+          const scene = message.params?.structuredContent?.scene;
+          if (scene) setScene(scene);
+        },
+        { passive: true }
+      );
+
+      renderPresetButtons();
+      resizeCanvas();
+
+      const initialScene = getInitialScene();
+      if (initialScene) {
+        setScene(initialScene);
+      } else {
+        render();
+      }
+    </script>
+  </body>
+  </html>
